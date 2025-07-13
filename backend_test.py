@@ -158,18 +158,142 @@ class GameHubAPITester:
         return success
 
     def test_dice_game(self):
-        """Test dice game functionality - should fail with insufficient balance"""
-        # The dice endpoint expects query parameters, not JSON body
-        # Since user starts with 0 balance, this should return 400 for insufficient balance
+        """Test dice game functionality"""
+        # Test with proper JSON body structure
+        dice_data = {
+            "target": 50.0,
+            "amount": 10.0,
+            "over": True
+        }
+        
         success, response = self.run_test(
-            "Play Dice Game (Insufficient Balance)",
+            "Play Dice Game",
             "POST",
-            "games/dice/play?target=50.0&amount=10.0&over=true",
-            400
+            "games/dice/play",
+            200,
+            data=dice_data
         )
         
         if success:
-            print(f"   ✓ Expected insufficient balance error: {response.get('detail', 'No detail')}")
+            print(f"   ✓ Roll result: {response.get('roll')}")
+            print(f"   ✓ Game result: {response.get('result')}")
+            print(f"   ✓ Payout: {response.get('payout')}")
+            print(f"   ✓ New balance: {response.get('new_balance')}")
+        return success
+
+    def test_mines_game(self):
+        """Test mines game functionality"""
+        # Start mines game
+        mines_start_data = {
+            "amount": 5.0,
+            "mines_count": 3
+        }
+        
+        success, response = self.run_test(
+            "Start Mines Game",
+            "POST",
+            "games/mines/start",
+            200,
+            data=mines_start_data
+        )
+        
+        if not success:
+            return False
+            
+        game_id = response.get('game_id')
+        print(f"   ✓ Game ID: {game_id}")
+        print(f"   ✓ Grid size: {response.get('grid_size')}")
+        print(f"   ✓ Mines count: {response.get('mines_count')}")
+        
+        # Reveal a tile (position 0)
+        success2, response2 = self.run_test(
+            "Reveal Mines Tile",
+            "POST",
+            f"games/mines/reveal?game_id={game_id}&tile_position=0",
+            200
+        )
+        
+        if success2:
+            print(f"   ✓ Tile result: {response2.get('result')}")
+            if response2.get('result') == 'safe':
+                print(f"   ✓ Current multiplier: {response2.get('current_multiplier')}")
+                
+                # Try to cash out
+                success3, response3 = self.run_test(
+                    "Cash Out Mines Game",
+                    "POST",
+                    f"games/mines/cashout?game_id={game_id}",
+                    200
+                )
+                
+                if success3:
+                    print(f"   ✓ Cash out payout: {response3.get('payout')}")
+                    print(f"   ✓ Multiplier: {response3.get('multiplier')}")
+                    return True
+            else:
+                print(f"   ✓ Hit mine - game over")
+                return True
+        
+        return success and success2
+
+    def test_crash_game(self):
+        """Test crash game functionality"""
+        # Test auto cash out
+        crash_data = {
+            "amount": 5.0,
+            "auto_cash_out": 2.5
+        }
+        
+        success, response = self.run_test(
+            "Play Crash Game (Auto Cash Out)",
+            "POST",
+            "games/crash/play",
+            200,
+            data=crash_data
+        )
+        
+        if success:
+            print(f"   ✓ Crash point: {response.get('crash_point')}")
+            print(f"   ✓ Result: {response.get('result')}")
+            print(f"   ✓ Payout: {response.get('payout')}")
+            print(f"   ✓ New balance: {response.get('new_balance')}")
+        
+        # Test manual play
+        crash_manual_data = {
+            "amount": 5.0
+        }
+        
+        success2, response2 = self.run_test(
+            "Play Crash Game (Manual)",
+            "POST",
+            "games/crash/play",
+            200,
+            data=crash_manual_data
+        )
+        
+        if success2:
+            print(f"   ✓ Manual crash point: {response2.get('crash_point')}")
+            print(f"   ✓ Manual result: {response2.get('result')}")
+        
+        return success and success2
+
+    def test_game_configs(self):
+        """Test game configuration endpoints"""
+        if not self.user_data or not self.user_data.get('is_admin'):
+            print("   ⚠️ Skipping game config test - user is not admin")
+            return True
+            
+        success, response = self.run_test(
+            "Get Game Configs",
+            "GET",
+            "admin/games/config",
+            200
+        )
+        
+        if success:
+            for game_type, config in response.items():
+                print(f"   ✓ {game_type}: {config}")
+        
         return success
 
     def test_admin_stats(self):
