@@ -25,6 +25,12 @@ const App = () => {
   const [crashGame, setCrashGame] = useState({ amount: 10, auto_cash_out: null, isPlaying: false, currentMultiplier: 1.0 });
   const [gameResult, setGameResult] = useState(null);
 
+  // Payment state
+  const [depositAmount, setDepositAmount] = useState(50);
+  const [withdrawAmount, setWithdrawAmount] = useState(20);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [pendingWithdrawals, setPendingWithdrawals] = useState([]);
+
   // Admin state
   const [adminConfig, setAdminConfig] = useState({});
   const [configToUpdate, setConfigToUpdate] = useState({});
@@ -110,6 +116,101 @@ const App = () => {
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
     setCurrentPage('home');
+  };
+
+  // Payment functions
+  const createDeposit = async () => {
+    try {
+      const response = await axios.post(`${API}/payments/deposit/create`, {
+        amount: depositAmount
+      });
+      
+      // Redirect to MercadoPago checkout
+      window.open(response.data.init_point, '_blank');
+      
+      // Start checking payment status
+      checkPaymentStatus(response.data.transaction_id);
+    } catch (error) {
+      alert('Error creating deposit: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
+  };
+
+  const checkPaymentStatus = async (transactionId) => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await axios.get(`${API}/payments/status/${transactionId}`);
+        if (response.data.status === 'completed') {
+          clearInterval(interval);
+          alert('Deposit completed successfully!');
+          getUserInfo(); // Refresh balance
+          loadPaymentHistory();
+        } else if (response.data.status === 'failed' || response.data.status === 'rejected') {
+          clearInterval(interval);
+          alert('Payment failed or was rejected');
+        }
+      } catch (error) {
+        console.error('Error checking payment status:', error);
+      }
+    }, 3000);
+
+    // Stop checking after 5 minutes
+    setTimeout(() => clearInterval(interval), 300000);
+  };
+
+  const requestWithdrawal = async () => {
+    try {
+      const response = await axios.post(`${API}/payments/withdraw/request`, {
+        amount: withdrawAmount,
+        payment_method: 'pix'
+      });
+      
+      alert('Withdrawal request submitted! You will receive the money after admin approval.');
+      getUserInfo(); // Refresh balance
+      loadPaymentHistory();
+    } catch (error) {
+      alert('Error requesting withdrawal: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
+  };
+
+  const loadPaymentHistory = async () => {
+    try {
+      const response = await axios.get(`${API}/payments/history`);
+      setPaymentHistory(response.data.transactions);
+    } catch (error) {
+      console.error('Error loading payment history:', error);
+    }
+  };
+
+  const loadPendingWithdrawals = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/payments/withdrawals`);
+      setPendingWithdrawals(response.data.withdrawals);
+    } catch (error) {
+      console.error('Error loading pending withdrawals:', error);
+    }
+  };
+
+  const approveWithdrawal = async (transactionId) => {
+    try {
+      await axios.post(`${API}/admin/payments/withdrawals/${transactionId}/approve`);
+      alert('Withdrawal approved!');
+      loadPendingWithdrawals();
+    } catch (error) {
+      alert('Error approving withdrawal: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
+  };
+
+  const rejectWithdrawal = async (transactionId) => {
+    const reason = prompt('Reason for rejection:');
+    if (!reason) return;
+    
+    try {
+      await axios.post(`${API}/admin/payments/withdrawals/${transactionId}/reject?reason=${encodeURIComponent(reason)}`);
+      alert('Withdrawal rejected and balance refunded!');
+      loadPendingWithdrawals();
+    } catch (error) {
+      alert('Error rejecting withdrawal: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
   };
 
   // Dice Game
