@@ -890,6 +890,65 @@ const App = () => {
         >
           Save All Configuration
         </button>
+
+        {/* Pending Withdrawals Section */}
+        {user?.is_admin && (
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg mt-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">💸 Pending Withdrawals</h2>
+              <button 
+                onClick={loadPendingWithdrawals}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Refresh
+              </button>
+            </div>
+            
+            {pendingWithdrawals.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-white">
+                  <thead>
+                    <tr className="border-b border-gray-600">
+                      <th className="text-left p-2">User</th>
+                      <th className="text-left p-2">Amount</th>
+                      <th className="text-left p-2">Method</th>
+                      <th className="text-left p-2">Date</th>
+                      <th className="text-left p-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingWithdrawals.map((withdrawal) => (
+                      <tr key={withdrawal.id} className="border-b border-gray-700">
+                        <td className="p-2">{withdrawal.user_id}</td>
+                        <td className="p-2">${withdrawal.amount.toFixed(2)}</td>
+                        <td className="p-2 capitalize">{withdrawal.metadata?.payment_method || 'N/A'}</td>
+                        <td className="p-2">{new Date(withdrawal.created_at).toLocaleDateString()}</td>
+                        <td className="p-2">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => approveWithdrawal(withdrawal.id)}
+                              className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => rejectWithdrawal(withdrawal.id)}
+                              className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-gray-300 text-center py-8">No pending withdrawals</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
