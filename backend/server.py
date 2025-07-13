@@ -228,12 +228,13 @@ async def register(user_data: UserCreate):
     is_admin = user_count == 0
     
     hashed_password = get_password_hash(user_data.password)
+    starting_balance = 100.0 if is_admin else 50.0
     user = User(
         username=user_data.username,
         email=user_data.email,
         hashed_password=hashed_password,
         is_admin=is_admin,
-        balance=100.0 if is_admin else 50.0  # Give starting balance for testing
+        balance=starting_balance
     )
     
     await db.users.insert_one(user.dict())
