@@ -159,18 +159,12 @@ class GameHubAPITester:
 
     def test_dice_game(self):
         """Test dice game functionality"""
-        game_data = {
-            "target": 50.0,
-            "amount": 10.0,
-            "over": True
-        }
-        
+        # The dice endpoint expects query parameters, not JSON body
         success, response = self.run_test(
             "Play Dice Game",
             "POST",
-            "games/dice/play",
-            200,
-            data=game_data
+            "games/dice/play?target=50.0&amount=10.0&over=true",
+            200
         )
         
         if success:
