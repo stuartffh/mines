@@ -754,6 +754,277 @@ async def play_crash_game(crash_data: CrashPlay, current_user: User = Depends(ge
         "auto_cash_out": crash_data.auto_cash_out
     }
 
+# Payment endpoints
+@api_router.post("/payments/deposit/create")
+async def create_deposit(deposit_data: DepositRequest, current_user: User = Depends(get_current_user)):
+    """Create a deposit payment preference"""
+    if deposit_data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid deposit amount")
+    
+    # Get payment config
+    payment_config = await db.payment_config.find_one({})
+    if not payment_config or not payment_config.get("mercadopago_access_token"):
+        raise HTTPException(status_code=500, detail="Payment system not configured")
+    
+    # Check minimum deposit
+    min_deposit = payment_config.get("min_deposit", 10.0)
+    max_deposit = payment_config.get("max_deposit", 10000.0)
+    
+    if deposit_data.amount < min_deposit or deposit_data.amount > max_deposit:
+        raise HTTPException(status_code=400, detail=f"Deposit amount must be between ${min_deposit} and ${max_deposit}")
+    
+    # Create MercadoPago preference
+    mp_service = get_mp_service(payment_config["mercadopago_access_token"])
+    if not mp_service:
+        raise HTTPException(status_code=500, detail="Payment service unavailable")
+    
+    transaction_id = str(uuid.uuid4())
+    notification_url = f"{os.environ.get('BACKEND_URL', '')}/api/payments/webhook"
+    
+    preference = await mp_service.create_payment_preference(
+        amount=deposit_data.amount,
+        description=f"Deposit to {current_user.username} account",
+        external_reference=transaction_id,
+        user_email=current_user.email,
+        notification_url=notification_url
+    )
+    
+    if not preference["success"]:
+        raise HTTPException(status_code=500, detail="Error creating payment preference")
+    
+    # Store transaction in database
+    transaction = Transaction(
+        id=transaction_id,
+        user_id=current_user.id,
+        type="deposit",
+        amount=deposit_data.amount,
+        status="pending",
+        description=f"Deposit of ${deposit_data.amount}",
+        metadata={
+            "preference_id": preference["preference_id"],
+            "init_point": preference["init_point"]
+        }
+    )
+    
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {
+        "transaction_id": transaction_id,
+        "preference_id": preference["preference_id"],
+        "init_point": preference["init_point"],
+        "amount": deposit_data.amount
+    }
+
+@api_router.post("/payments/webhook")
+async def payment_webhook(request: Request):
+    """Handle MercadoPago webhook notifications"""
+    try:
+        body = await request.body()
+        data = await request.json()
+        
+        # Process payment webhook
+        if data.get("action") == "payment.updated" or data.get("type") == "payment":
+            payment_id = data["data"]["id"]
+            
+            # Get payment config for access token
+            payment_config = await db.payment_config.find_one({})
+            if not payment_config:
+                raise HTTPException(status_code=500, detail="Payment configuration not found")
+            
+            mp_service = get_mp_service(payment_config["mercadopago_access_token"])
+            if not mp_service:
+                raise HTTPException(status_code=500, detail="Payment service unavailable")
+            
+            # Process the payment
+            result = await mp_service.process_webhook_payment(str(payment_id))
+            
+            if result["success"]:
+                # Find transaction by external reference
+                transaction = await db.transactions.find_one({
+                    "id": result["external_reference"]
+                })
+                
+                if transaction:
+                    # Update transaction status
+                    await db.transactions.update_one(
+                        {"id": result["external_reference"]},
+                        {"$set": {
+                            "status": result["status"],
+                            "metadata.payment_id": result["payment_id"],
+                            "metadata.processed_at": result["processed_at"]
+                        }}
+                    )
+                    
+                    # If payment approved, add to user balance
+                    if result["status"] == "completed":
+                        user = await db.users.find_one({"id": transaction["user_id"]})
+                        if user:
+                            new_balance = user["balance"] + transaction["amount"]
+                            await db.users.update_one(
+                                {"id": transaction["user_id"]},
+                                {"$set": {"balance": new_balance}}
+                            )
+        
+        return {"status": "OK"}
+        
+    except Exception as e:
+        logging.error(f"Webhook error: {str(e)}")
+        return {"status": "ERROR", "message": str(e)}
+
+@api_router.get("/payments/status/{transaction_id}")
+async def get_payment_status(transaction_id: str, current_user: User = Depends(get_current_user)):
+    """Get payment status"""
+    transaction = await db.transactions.find_one({
+        "id": transaction_id,
+        "user_id": current_user.id
+    })
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    return {
+        "transaction_id": transaction_id,
+        "status": transaction["status"],
+        "amount": transaction["amount"],
+        "type": transaction["type"],
+        "created_at": transaction["created_at"],
+        "metadata": transaction.get("metadata", {})
+    }
+
+@api_router.get("/payments/history")
+async def get_payment_history(current_user: User = Depends(get_current_user), limit: int = 20):
+    """Get user payment history"""
+    transactions = await db.transactions.find({
+        "user_id": current_user.id
+    }).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    return {
+        "transactions": transactions,
+        "total": len(transactions)
+    }
+
+@api_router.post("/payments/withdraw/request")
+async def request_withdrawal(withdraw_data: WithdrawRequest, current_user: User = Depends(get_current_user)):
+    """Request a withdrawal"""
+    if withdraw_data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid withdrawal amount")
+    
+    if current_user.balance < withdraw_data.amount:
+        raise HTTPException(status_code=400, detail="Insufficient balance")
+    
+    # Get payment config
+    payment_config = await db.payment_config.find_one({})
+    if not payment_config:
+        raise HTTPException(status_code=500, detail="Payment system not configured")
+    
+    min_withdraw = payment_config.get("min_withdraw", 20.0)
+    max_withdraw = payment_config.get("max_withdraw", 5000.0)
+    
+    if withdraw_data.amount < min_withdraw or withdraw_data.amount > max_withdraw:
+        raise HTTPException(status_code=400, detail=f"Withdrawal amount must be between ${min_withdraw} and ${max_withdraw}")
+    
+    # Create withdrawal transaction
+    transaction_id = str(uuid.uuid4())
+    
+    # Deduct from user balance immediately (pending approval)
+    new_balance = current_user.balance - withdraw_data.amount
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"balance": new_balance}}
+    )
+    
+    # Store withdrawal request
+    transaction = Transaction(
+        id=transaction_id,
+        user_id=current_user.id,
+        type="withdrawal",
+        amount=withdraw_data.amount,
+        status="pending",
+        description=f"Withdrawal of ${withdraw_data.amount}",
+        metadata={
+            "payment_method": withdraw_data.payment_method,
+            "requested_at": datetime.utcnow()
+        }
+    )
+    
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {
+        "transaction_id": transaction_id,
+        "amount": withdraw_data.amount,
+        "new_balance": new_balance,
+        "status": "pending",
+        "message": "Withdrawal request submitted for approval"
+    }
+
+@api_router.get("/admin/payments/withdrawals")
+async def get_pending_withdrawals(admin_user: User = Depends(get_admin_user)):
+    """Get pending withdrawal requests for admin"""
+    withdrawals = await db.transactions.find({
+        "type": "withdrawal",
+        "status": "pending"
+    }).sort("created_at", -1).to_list(100)
+    
+    return {"withdrawals": withdrawals}
+
+@api_router.post("/admin/payments/withdrawals/{transaction_id}/approve")
+async def approve_withdrawal(transaction_id: str, admin_user: User = Depends(get_admin_user)):
+    """Approve a withdrawal request"""
+    transaction = await db.transactions.find_one({
+        "id": transaction_id,
+        "type": "withdrawal",
+        "status": "pending"
+    })
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Withdrawal request not found")
+    
+    # Update transaction status
+    await db.transactions.update_one(
+        {"id": transaction_id},
+        {"$set": {
+            "status": "completed",
+            "metadata.approved_by": admin_user.id,
+            "metadata.approved_at": datetime.utcnow()
+        }}
+    )
+    
+    return {"message": "Withdrawal approved successfully"}
+
+@api_router.post("/admin/payments/withdrawals/{transaction_id}/reject")
+async def reject_withdrawal(transaction_id: str, reason: str, admin_user: User = Depends(get_admin_user)):
+    """Reject a withdrawal request and refund balance"""
+    transaction = await db.transactions.find_one({
+        "id": transaction_id,
+        "type": "withdrawal",
+        "status": "pending"
+    })
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Withdrawal request not found")
+    
+    # Refund user balance
+    user = await db.users.find_one({"id": transaction["user_id"]})
+    if user:
+        new_balance = user["balance"] + transaction["amount"]
+        await db.users.update_one(
+            {"id": transaction["user_id"]},
+            {"$set": {"balance": new_balance}}
+        )
+    
+    # Update transaction status
+    await db.transactions.update_one(
+        {"id": transaction_id},
+        {"$set": {
+            "status": "rejected",
+            "metadata.rejected_by": admin_user.id,
+            "metadata.rejected_at": datetime.utcnow(),
+            "metadata.rejection_reason": reason
+        }}
+    )
+    
+    return {"message": "Withdrawal rejected and balance refunded"}
+
 @api_router.get("/admin/stats")
 async def get_admin_stats(admin_user: User = Depends(get_admin_user)):
     """Get admin dashboard statistics"""
