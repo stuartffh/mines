@@ -18,6 +18,8 @@ import json
 import shutil
 from passlib.context import CryptContext
 import aiofiles
+import random
+import math
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -96,6 +98,32 @@ class PaymentConfig(BaseModel):
     min_deposit: float = 10.0
     max_deposit: float = 10000.0
 
+class Transaction(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    type: str  # deposit, withdrawal, bet_win, bet_loss
+    amount: float
+    status: str  # pending, completed, failed
+    description: str
+    metadata: Dict[str, Any] = {}
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+# Game Models
+class DicePlay(BaseModel):
+    target: float
+    amount: float
+    over: bool = True
+
+class MinesPlay(BaseModel):
+    amount: float
+    mines_count: int
+    selected_tiles: List[int] = []
+    cash_out: bool = False
+
+class CrashPlay(BaseModel):
+    amount: float
+    auto_cash_out: Optional[float] = None
+
 # Utility functions
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -140,6 +168,53 @@ def hash_seed(seed: str):
     """Create SHA256 hash of seed for transparency"""
     return hashlib.sha256(seed.encode()).hexdigest()
 
+def calculate_mines_multiplier(revealed_tiles: int, total_mines: int, grid_size: int = 25):
+    """Calculate multiplier for mines game based on revealed safe tiles"""
+    if revealed_tiles == 0:
+        return 1.0
+    
+    safe_tiles = grid_size - total_mines
+    if revealed_tiles >= safe_tiles:
+        return 0.0  # Game over
+    
+    # Calculate probability-based multiplier
+    remaining_safe = safe_tiles - revealed_tiles
+    remaining_total = grid_size - revealed_tiles
+    
+    base_multiplier = 1.0
+    for i in range(revealed_tiles):
+        safe_chance = (safe_tiles - i) / (grid_size - i)
+        base_multiplier *= (0.99 / safe_chance)  # 1% house edge
+    
+    return round(base_multiplier, 2)
+
+def generate_mines_grid(mines_count: int, seed: str, grid_size: int = 25):
+    """Generate mines positions using provably fair seed"""
+    random.seed(int(seed[:8], 16))
+    positions = list(range(grid_size))
+    random.shuffle(positions)
+    return positions[:mines_count]
+
+def generate_crash_multiplier(seed: str):
+    """Generate crash multiplier using provably fair algorithm"""
+    # Convert seed to number for crash calculation
+    seed_int = int(seed[:8], 16)
+    
+    # Use a crash algorithm similar to bustabit
+    # This creates a house edge of approximately 1%
+    e = 2 ** 32
+    h = seed_int
+    
+    if h % 33 == 0:  # 3% chance of instant crash
+        return 1.00
+    
+    # Calculate crash point
+    result = (99 / (1 - (h / e)))
+    
+    # Cap maximum multiplier
+    crash_point = max(1.01, min(result / 100, 10000.0))
+    return round(crash_point, 2)
+
 # Authentication endpoints
 @api_router.post("/auth/register")
 async def register(user_data: UserCreate):
@@ -157,7 +232,8 @@ async def register(user_data: UserCreate):
         username=user_data.username,
         email=user_data.email,
         hashed_password=hashed_password,
-        is_admin=is_admin
+        is_admin=is_admin,
+        balance=100.0 if is_admin else 50.0  # Give starting balance for testing
     )
     
     await db.users.insert_one(user.dict())
@@ -284,8 +360,8 @@ async def get_game_configs(admin_user: User = Depends(get_admin_user)):
         # Set default configurations
         defaults = [
             {"game_type": "dice", "settings": {"min_bet": 1.0, "max_bet": 1000.0, "house_edge": 0.01, "max_multiplier": 99.0}},
-            {"game_type": "mines", "settings": {"min_bet": 1.0, "max_bet": 1000.0, "house_edge": 0.01, "grid_size": 25, "max_mines": 24}},
-            {"game_type": "crash", "settings": {"min_bet": 1.0, "max_bet": 1000.0, "house_edge": 0.01, "max_multiplier": 1000.0}}
+            {"game_type": "mines", "settings": {"min_bet": 1.0, "max_bet": 1000.0, "house_edge": 0.01, "grid_size": 25, "max_mines": 24, "min_mines": 1}},
+            {"game_type": "crash", "settings": {"min_bet": 1.0, "max_bet": 1000.0, "house_edge": 0.01, "max_multiplier": 10000.0}}
         ]
         for default in defaults:
             config = GameConfig(**default)
@@ -307,12 +383,12 @@ async def update_game_config(game_type: str, settings: Dict[str, Any], admin_use
 
 # Game endpoints
 @api_router.post("/games/dice/play")
-async def play_dice(target: float, amount: float, over: bool = True, current_user: User = Depends(get_current_user)):
+async def play_dice(dice_data: DicePlay, current_user: User = Depends(get_current_user)):
     """Play dice game"""
-    if amount <= 0:
+    if dice_data.amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid bet amount")
     
-    if current_user.balance < amount:
+    if current_user.balance < dice_data.amount:
         raise HTTPException(status_code=400, detail="Insufficient balance")
     
     # Get game config
@@ -321,7 +397,7 @@ async def play_dice(target: float, amount: float, over: bool = True, current_use
         raise HTTPException(status_code=500, detail="Game configuration not found")
     
     settings = game_config["settings"]
-    if amount < settings["min_bet"] or amount > settings["max_bet"]:
+    if dice_data.amount < settings["min_bet"] or dice_data.amount > settings["max_bet"]:
         raise HTTPException(status_code=400, detail=f"Bet amount must be between {settings['min_bet']} and {settings['max_bet']}")
     
     # Generate provably fair result
@@ -333,19 +409,19 @@ async def play_dice(target: float, amount: float, over: bool = True, current_use
     roll = (random_int % 10000) / 100  # 0-99.99
     
     # Calculate win/loss
-    win = (over and roll > target) or (not over and roll < target)
+    win = (dice_data.over and roll > dice_data.target) or (not dice_data.over and roll < dice_data.target)
     
     # Calculate multiplier and payout
     if win:
-        win_chance = (99.99 - target) / 100 if over else target / 100
+        win_chance = (99.99 - dice_data.target) / 100 if dice_data.over else dice_data.target / 100
         multiplier = (1 - settings["house_edge"]) / win_chance
-        payout = amount * multiplier
+        payout = dice_data.amount * multiplier
     else:
         multiplier = 0
         payout = 0
     
     # Update user balance
-    new_balance = current_user.balance - amount + payout
+    new_balance = current_user.balance - dice_data.amount + payout
     await db.users.update_one(
         {"id": current_user.id},
         {"$set": {"balance": new_balance}}
@@ -355,11 +431,11 @@ async def play_dice(target: float, amount: float, over: bool = True, current_use
     bet = Bet(
         user_id=current_user.id,
         game_type="dice",
-        amount=amount,
+        amount=dice_data.amount,
         multiplier=multiplier,
         result="win" if win else "loss",
         payout=payout,
-        game_data={"target": target, "over": over, "roll": roll},
+        game_data={"target": dice_data.target, "over": dice_data.over, "roll": roll},
         seed_hash=seed_hash,
         seed_reveal=seed
     )
@@ -368,12 +444,273 @@ async def play_dice(target: float, amount: float, over: bool = True, current_use
     return {
         "result": "win" if win else "loss",
         "roll": roll,
-        "target": target,
-        "over": over,
+        "target": dice_data.target,
+        "over": dice_data.over,
         "multiplier": multiplier,
         "payout": payout,
         "new_balance": new_balance,
         "seed_hash": seed_hash
+    }
+
+@api_router.post("/games/mines/start")
+async def start_mines_game(mines_data: MinesPlay, current_user: User = Depends(get_current_user)):
+    """Start a new mines game"""
+    if mines_data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid bet amount")
+    
+    if current_user.balance < mines_data.amount:
+        raise HTTPException(status_code=400, detail="Insufficient balance")
+    
+    # Get game config
+    game_config = await db.game_config.find_one({"game_type": "mines"})
+    if not game_config:
+        raise HTTPException(status_code=500, detail="Game configuration not found")
+    
+    settings = game_config["settings"]
+    if mines_data.amount < settings["min_bet"] or mines_data.amount > settings["max_bet"]:
+        raise HTTPException(status_code=400, detail=f"Bet amount must be between {settings['min_bet']} and {settings['max_bet']}")
+    
+    if mines_data.mines_count < settings["min_mines"] or mines_data.mines_count > settings["max_mines"]:
+        raise HTTPException(status_code=400, detail=f"Mines count must be between {settings['min_mines']} and {settings['max_mines']}")
+    
+    # Generate provably fair mines positions
+    seed = generate_provably_fair_seed()
+    seed_hash = hash_seed(seed)
+    
+    mines_positions = generate_mines_grid(mines_data.mines_count, seed, settings["grid_size"])
+    
+    # Deduct bet amount from balance
+    new_balance = current_user.balance - mines_data.amount
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"balance": new_balance}}
+    )
+    
+    # Create game session
+    game_session = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user.id,
+        "game_type": "mines",
+        "amount": mines_data.amount,
+        "mines_count": mines_data.mines_count,
+        "mines_positions": mines_positions,
+        "revealed_tiles": [],
+        "status": "active",
+        "current_multiplier": 1.0,
+        "seed_hash": seed_hash,
+        "seed_reveal": seed,
+        "created_at": datetime.utcnow()
+    }
+    
+    await db.game_sessions.insert_one(game_session)
+    
+    return {
+        "game_id": game_session["id"],
+        "grid_size": settings["grid_size"],
+        "mines_count": mines_data.mines_count,
+        "current_multiplier": 1.0,
+        "new_balance": new_balance,
+        "seed_hash": seed_hash
+    }
+
+@api_router.post("/games/mines/reveal")
+async def reveal_mines_tile(game_id: str, tile_position: int, current_user: User = Depends(get_current_user)):
+    """Reveal a tile in mines game"""
+    # Get game session
+    game_session = await db.game_sessions.find_one({"id": game_id, "user_id": current_user.id, "status": "active"})
+    if not game_session:
+        raise HTTPException(status_code=404, detail="Game session not found or inactive")
+    
+    # Check if tile already revealed
+    if tile_position in game_session["revealed_tiles"]:
+        raise HTTPException(status_code=400, detail="Tile already revealed")
+    
+    # Check if tile is a mine
+    hit_mine = tile_position in game_session["mines_positions"]
+    
+    if hit_mine:
+        # Game over - player hit mine
+        await db.game_sessions.update_one(
+            {"id": game_id},
+            {"$set": {"status": "lost"}}
+        )
+        
+        # Record losing bet
+        bet = Bet(
+            user_id=current_user.id,
+            game_type="mines",
+            amount=game_session["amount"],
+            multiplier=0,
+            result="loss",
+            payout=0,
+            game_data={
+                "mines_count": game_session["mines_count"],
+                "revealed_tiles": game_session["revealed_tiles"] + [tile_position],
+                "hit_mine": True,
+                "mine_position": tile_position
+            },
+            seed_hash=game_session["seed_hash"],
+            seed_reveal=game_session["seed_reveal"]
+        )
+        await db.bets.insert_one(bet.dict())
+        
+        return {
+            "result": "mine",
+            "game_over": True,
+            "tile_position": tile_position,
+            "mines_positions": game_session["mines_positions"],
+            "payout": 0
+        }
+    
+    else:
+        # Safe tile - update game session
+        revealed_tiles = game_session["revealed_tiles"] + [tile_position]
+        current_multiplier = calculate_mines_multiplier(len(revealed_tiles), game_session["mines_count"])
+        
+        await db.game_sessions.update_one(
+            {"id": game_id},
+            {"$set": {
+                "revealed_tiles": revealed_tiles,
+                "current_multiplier": current_multiplier
+            }}
+        )
+        
+        return {
+            "result": "safe",
+            "game_over": False,
+            "tile_position": tile_position,
+            "current_multiplier": current_multiplier,
+            "revealed_count": len(revealed_tiles)
+        }
+
+@api_router.post("/games/mines/cashout")
+async def cashout_mines_game(game_id: str, current_user: User = Depends(get_current_user)):
+    """Cash out from mines game"""
+    # Get game session
+    game_session = await db.game_sessions.find_one({"id": game_id, "user_id": current_user.id, "status": "active"})
+    if not game_session:
+        raise HTTPException(status_code=404, detail="Game session not found or inactive")
+    
+    if not game_session["revealed_tiles"]:
+        raise HTTPException(status_code=400, detail="Must reveal at least one tile before cashing out")
+    
+    # Calculate payout
+    multiplier = game_session["current_multiplier"]
+    payout = game_session["amount"] * multiplier
+    
+    # Update user balance
+    current_user_data = await db.users.find_one({"id": current_user.id})
+    new_balance = current_user_data["balance"] + payout
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"balance": new_balance}}
+    )
+    
+    # Update game session
+    await db.game_sessions.update_one(
+        {"id": game_id},
+        {"$set": {"status": "won"}}
+    )
+    
+    # Record winning bet
+    bet = Bet(
+        user_id=current_user.id,
+        game_type="mines",
+        amount=game_session["amount"],
+        multiplier=multiplier,
+        result="win",
+        payout=payout,
+        game_data={
+            "mines_count": game_session["mines_count"],
+            "revealed_tiles": game_session["revealed_tiles"],
+            "cashed_out": True
+        },
+        seed_hash=game_session["seed_hash"],
+        seed_reveal=game_session["seed_reveal"]
+    )
+    await db.bets.insert_one(bet.dict())
+    
+    return {
+        "result": "cashout",
+        "multiplier": multiplier,
+        "payout": payout,
+        "new_balance": new_balance
+    }
+
+@api_router.post("/games/crash/play")
+async def play_crash_game(crash_data: CrashPlay, current_user: User = Depends(get_current_user)):
+    """Play crash game"""
+    if crash_data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid bet amount")
+    
+    if current_user.balance < crash_data.amount:
+        raise HTTPException(status_code=400, detail="Insufficient balance")
+    
+    # Get game config
+    game_config = await db.game_config.find_one({"game_type": "crash"})
+    if not game_config:
+        raise HTTPException(status_code=500, detail="Game configuration not found")
+    
+    settings = game_config["settings"]
+    if crash_data.amount < settings["min_bet"] or crash_data.amount > settings["max_bet"]:
+        raise HTTPException(status_code=400, detail=f"Bet amount must be between {settings['min_bet']} and {settings['max_bet']}")
+    
+    # Generate provably fair crash point
+    seed = generate_provably_fair_seed()
+    seed_hash = hash_seed(seed)
+    crash_point = generate_crash_multiplier(seed)
+    
+    # Determine if player wins (if they set auto cash out)
+    if crash_data.auto_cash_out:
+        if crash_data.auto_cash_out <= crash_point:
+            # Player wins
+            multiplier = crash_data.auto_cash_out
+            payout = crash_data.amount * multiplier
+            result = "win"
+        else:
+            # Player loses (crash happened before their cash out)
+            multiplier = 0
+            payout = 0
+            result = "loss"
+    else:
+        # Manual play - return crash point for client to handle
+        multiplier = 0
+        payout = 0
+        result = "manual"
+    
+    # Update user balance
+    new_balance = current_user.balance - crash_data.amount + payout
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"balance": new_balance}}
+    )
+    
+    # Record bet
+    bet = Bet(
+        user_id=current_user.id,
+        game_type="crash",
+        amount=crash_data.amount,
+        multiplier=multiplier,
+        result=result,
+        payout=payout,
+        game_data={
+            "crash_point": crash_point,
+            "auto_cash_out": crash_data.auto_cash_out,
+            "manual_play": crash_data.auto_cash_out is None
+        },
+        seed_hash=seed_hash,
+        seed_reveal=seed
+    )
+    await db.bets.insert_one(bet.dict())
+    
+    return {
+        "result": result,
+        "crash_point": crash_point,
+        "multiplier": multiplier,
+        "payout": payout,
+        "new_balance": new_balance,
+        "seed_hash": seed_hash,
+        "auto_cash_out": crash_data.auto_cash_out
     }
 
 # Stats endpoints
@@ -396,6 +733,24 @@ async def get_admin_stats(admin_user: User = Depends(get_admin_user)):
     total_payout = result[0]["total_payout"] if result else 0
     house_profit = total_wagered - total_payout
     
+    # Game stats
+    game_stats = {}
+    for game_type in ["dice", "mines", "crash"]:
+        game_pipeline = [
+            {"$match": {"game_type": game_type}},
+            {"$group": {
+                "_id": None,
+                "total_bets": {"$sum": 1},
+                "total_wagered": {"$sum": "$amount"},
+                "total_payout": {"$sum": "$payout"}
+            }}
+        ]
+        game_result = await db.bets.aggregate(game_pipeline).to_list(1)
+        if game_result:
+            game_stats[game_type] = game_result[0]
+        else:
+            game_stats[game_type] = {"total_bets": 0, "total_wagered": 0, "total_payout": 0}
+    
     # Recent bets
     recent_bets = await db.bets.find().sort("created_at", -1).limit(10).to_list(10)
     
@@ -405,6 +760,7 @@ async def get_admin_stats(admin_user: User = Depends(get_admin_user)):
         "total_wagered": total_wagered,
         "total_payout": total_payout,
         "house_profit": house_profit,
+        "game_stats": game_stats,
         "recent_bets": recent_bets
     }
 

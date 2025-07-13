@@ -21,11 +21,15 @@ const App = () => {
 
   // Game state
   const [diceGame, setDiceGame] = useState({ target: 50, amount: 10, over: true });
+  const [minesGame, setMinesGame] = useState({ amount: 10, mines_count: 3, gameId: null, grid: Array(25).fill('hidden'), currentMultiplier: 1.0 });
+  const [crashGame, setCrashGame] = useState({ amount: 10, auto_cash_out: null, isPlaying: false, currentMultiplier: 1.0 });
   const [gameResult, setGameResult] = useState(null);
 
   // Admin state
   const [adminConfig, setAdminConfig] = useState({});
   const [configToUpdate, setConfigToUpdate] = useState({});
+  const [gameConfigs, setGameConfigs] = useState({});
+  const [adminStats, setAdminStats] = useState({});
 
   useEffect(() => {
     loadSiteConfig();
@@ -108,17 +112,149 @@ const App = () => {
     setCurrentPage('home');
   };
 
+  // Dice Game
   const playDice = async () => {
     try {
       const response = await axios.post(`${API}/games/dice/play`, diceGame);
       setGameResult(response.data);
-      // Refresh user info to get updated balance
-      getUserInfo();
+      getUserInfo(); // Refresh user info
     } catch (error) {
       alert('Game error: ' + (error.response?.data?.detail || 'Unknown error'));
     }
   };
 
+  // Mines Game
+  const startMinesGame = async () => {
+    try {
+      const response = await axios.post(`${API}/games/mines/start`, {
+        amount: minesGame.amount,
+        mines_count: minesGame.mines_count
+      });
+      
+      setMinesGame({
+        ...minesGame,
+        gameId: response.data.game_id,
+        grid: Array(25).fill('hidden'),
+        currentMultiplier: response.data.current_multiplier
+      });
+      getUserInfo(); // Refresh balance
+    } catch (error) {
+      alert('Error starting mines game: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
+  };
+
+  const revealMinesTile = async (position) => {
+    if (!minesGame.gameId || minesGame.grid[position] !== 'hidden') return;
+    
+    try {
+      const response = await axios.post(`${API}/games/mines/reveal?tile_position=${position}`, {}, {
+        params: { game_id: minesGame.gameId }
+      });
+      
+      const newGrid = [...minesGame.grid];
+      
+      if (response.data.result === 'mine') {
+        // Game over - reveal all mines
+        response.data.mines_positions.forEach(pos => {
+          newGrid[pos] = 'mine';
+        });
+        newGrid[position] = 'mine-hit';
+        
+        setMinesGame({
+          ...minesGame,
+          grid: newGrid,
+          gameId: null
+        });
+        
+        alert(`💥 You hit a mine! Game over. Lost $${minesGame.amount}`);
+      } else {
+        // Safe tile
+        newGrid[position] = 'safe';
+        setMinesGame({
+          ...minesGame,
+          grid: newGrid,
+          currentMultiplier: response.data.current_multiplier
+        });
+      }
+    } catch (error) {
+      alert('Error revealing tile: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
+  };
+
+  const cashoutMines = async () => {
+    if (!minesGame.gameId) return;
+    
+    try {
+      const response = await axios.post(`${API}/games/mines/cashout?game_id=${minesGame.gameId}`);
+      
+      setMinesGame({
+        ...minesGame,
+        gameId: null,
+        grid: Array(25).fill('hidden')
+      });
+      
+      alert(`💰 Cashed out! Won $${response.data.payout.toFixed(2)} with ${response.data.multiplier}x multiplier!`);
+      getUserInfo(); // Refresh balance
+    } catch (error) {
+      alert('Error cashing out: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
+  };
+
+  // Crash Game
+  const playCrash = async () => {
+    try {
+      const response = await axios.post(`${API}/games/crash/play`, crashGame);
+      
+      if (response.data.result === 'manual') {
+        // Start manual crash game simulation
+        setCrashGame({
+          ...crashGame,
+          isPlaying: true,
+          currentMultiplier: 1.0
+        });
+        
+        // Simulate crash game progression
+        simulateCrashGame(response.data.crash_point);
+      } else {
+        // Auto cash out result
+        alert(`Game Over! Crash at ${response.data.crash_point}x. ${response.data.result === 'win' ? `Won $${response.data.payout.toFixed(2)}!` : 'Lost your bet!'}`);
+        getUserInfo();
+      }
+    } catch (error) {
+      alert('Crash game error: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
+  };
+
+  const simulateCrashGame = (crashPoint) => {
+    let currentMult = 1.0;
+    const interval = setInterval(() => {
+      currentMult += 0.01;
+      setCrashGame(prev => ({ ...prev, currentMultiplier: currentMult }));
+      
+      if (currentMult >= crashPoint) {
+        clearInterval(interval);
+        setCrashGame(prev => ({ ...prev, isPlaying: false }));
+        alert(`💥 Crashed at ${crashPoint}x! ${crashGame.auto_cash_out && crashGame.auto_cash_out <= crashPoint ? 'You won!' : 'You lost!'}`);
+        getUserInfo();
+      }
+    }, 100);
+  };
+
+  const manualCashOut = async () => {
+    if (!crashGame.isPlaying) return;
+    
+    setCrashGame({
+      ...crashGame,
+      isPlaying: false
+    });
+    
+    // Calculate payout based on current multiplier
+    const payout = crashGame.amount * crashGame.currentMultiplier;
+    alert(`💰 Manual cash out at ${crashGame.currentMultiplier.toFixed(2)}x! Won $${payout.toFixed(2)}!`);
+    getUserInfo();
+  };
+
+  // Admin functions
   const loadAdminConfig = async () => {
     try {
       const response = await axios.get(`${API}/admin/config`);
@@ -129,12 +265,30 @@ const App = () => {
     }
   };
 
+  const loadGameConfigs = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/games/config`);
+      setGameConfigs(response.data);
+    } catch (error) {
+      alert('Error loading game configs: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
+  };
+
+  const loadAdminStats = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/stats`);
+      setAdminStats(response.data);
+    } catch (error) {
+      alert('Error loading admin stats: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
+  };
+
   const updateAdminConfig = async () => {
     try {
       await axios.post(`${API}/admin/config`, configToUpdate);
       alert('Configuration updated successfully!');
-      loadSiteConfig(); // Reload public config
-      loadAdminConfig(); // Reload admin config
+      loadSiteConfig();
+      loadAdminConfig();
     } catch (error) {
       alert('Error updating config: ' + (error.response?.data?.detail || 'Unknown error'));
     }
@@ -190,7 +344,7 @@ const App = () => {
                 <span className="text-white">Balance: ${user.balance?.toFixed(2) || '0.00'}</span>
                 <button onClick={() => setCurrentPage('games')} className="text-white hover:text-yellow-400">Games</button>
                 {user.is_admin && (
-                  <button onClick={() => { setCurrentPage('admin'); loadAdminConfig(); }} className="text-white hover:text-yellow-400">Admin</button>
+                  <button onClick={() => { setCurrentPage('admin'); loadAdminConfig(); loadGameConfigs(); loadAdminStats(); }} className="text-white hover:text-yellow-400">Admin</button>
                 )}
                 <button onClick={handleLogout} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</button>
               </>
@@ -324,11 +478,11 @@ const App = () => {
           </button>
         </div>
 
-        {/* Dice Game */}
-        <div className="bg-white bg-opacity-10 backdrop-blur-md p-8 rounded-lg mb-8">
-          <h2 className="text-2xl font-bold text-white mb-6">🎲 Dice Game</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Dice Game */}
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg">
+            <h2 className="text-2xl font-bold text-white mb-4 text-center">🎲 Dice Game</h2>
+            
             <div className="space-y-4">
               <div>
                 <label className="block text-white mb-2">Bet Amount</label>
@@ -355,16 +509,16 @@ const App = () => {
                 />
               </div>
               
-              <div className="flex space-x-4">
+              <div className="flex space-x-2">
                 <button
                   onClick={() => setDiceGame({...diceGame, over: true})}
-                  className={`flex-1 py-3 rounded ${diceGame.over ? 'bg-green-600' : 'bg-gray-600'} text-white`}
+                  className={`flex-1 py-2 rounded ${diceGame.over ? 'bg-green-600' : 'bg-gray-600'} text-white text-sm`}
                 >
                   Over {diceGame.target}
                 </button>
                 <button
                   onClick={() => setDiceGame({...diceGame, over: false})}
-                  className={`flex-1 py-3 rounded ${!diceGame.over ? 'bg-red-600' : 'bg-gray-600'} text-white`}
+                  className={`flex-1 py-2 rounded ${!diceGame.over ? 'bg-red-600' : 'bg-gray-600'} text-white text-sm`}
                 >
                   Under {diceGame.target}
                 </button>
@@ -372,27 +526,145 @@ const App = () => {
               
               <button
                 onClick={playDice}
-                className="w-full bg-yellow-500 text-black py-4 rounded-lg text-xl font-bold hover:bg-yellow-400"
+                className="w-full bg-yellow-500 text-black py-3 rounded-lg font-bold hover:bg-yellow-400"
               >
-                Play Dice
+                Roll Dice
               </button>
-            </div>
-            
-            {gameResult && (
-              <div className="bg-black bg-opacity-30 p-6 rounded-lg">
-                <h3 className="text-xl font-bold text-white mb-4">Game Result</h3>
-                <div className="space-y-2 text-white">
+              
+              {gameResult && gameResult.roll !== undefined && (
+                <div className="bg-black bg-opacity-30 p-4 rounded-lg text-white text-sm">
                   <p>Roll: <span className="font-bold text-yellow-400">{gameResult.roll}</span></p>
-                  <p>Target: {gameResult.target} ({gameResult.over ? 'Over' : 'Under'})</p>
                   <p>Result: <span className={`font-bold ${gameResult.result === 'win' ? 'text-green-400' : 'text-red-400'}`}>
                     {gameResult.result.toUpperCase()}
                   </span></p>
-                  <p>Multiplier: {gameResult.multiplier.toFixed(2)}x</p>
                   <p>Payout: ${gameResult.payout.toFixed(2)}</p>
-                  <p>New Balance: ${gameResult.new_balance.toFixed(2)}</p>
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* Mines Game */}
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg">
+            <h2 className="text-2xl font-bold text-white mb-4 text-center">💣 Mines Game</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white mb-2">Bet Amount</label>
+                <input
+                  type="number"
+                  value={minesGame.amount}
+                  onChange={(e) => setMinesGame({...minesGame, amount: parseFloat(e.target.value)})}
+                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
+                  disabled={minesGame.gameId}
+                />
               </div>
-            )}
+              
+              <div>
+                <label className="block text-white mb-2">Mines Count</label>
+                <input
+                  type="number"
+                  value={minesGame.mines_count}
+                  onChange={(e) => setMinesGame({...minesGame, mines_count: parseInt(e.target.value)})}
+                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
+                  min="1"
+                  max="24"
+                  disabled={minesGame.gameId}
+                />
+              </div>
+              
+              {!minesGame.gameId ? (
+                <button
+                  onClick={startMinesGame}
+                  className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700"
+                >
+                  Start Game
+                </button>
+              ) : (
+                <div className="text-center">
+                  <p className="text-white mb-2">Multiplier: {minesGame.currentMultiplier.toFixed(2)}x</p>
+                  <button
+                    onClick={cashoutMines}
+                    className="w-full bg-yellow-500 text-black py-2 rounded-lg font-bold hover:bg-yellow-400 mb-4"
+                  >
+                    Cash Out
+                  </button>
+                </div>
+              )}
+              
+              {/* Mines Grid */}
+              <div className="grid grid-cols-5 gap-1">
+                {minesGame.grid.map((tile, index) => (
+                  <button
+                    key={index}
+                    onClick={() => revealMinesTile(index)}
+                    disabled={!minesGame.gameId || tile !== 'hidden'}
+                    className={`aspect-square rounded text-xs font-bold ${
+                      tile === 'hidden' 
+                        ? 'bg-gray-600 hover:bg-gray-500' 
+                        : tile === 'safe'
+                        ? 'bg-green-600'
+                        : tile === 'mine'
+                        ? 'bg-red-600'
+                        : 'bg-red-800'
+                    }`}
+                  >
+                    {tile === 'safe' ? '💎' : tile === 'mine' || tile === 'mine-hit' ? '💣' : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Crash Game */}
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg">
+            <h2 className="text-2xl font-bold text-white mb-4 text-center">🚀 Crash Game</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white mb-2">Bet Amount</label>
+                <input
+                  type="number"
+                  value={crashGame.amount}
+                  onChange={(e) => setCrashGame({...crashGame, amount: parseFloat(e.target.value)})}
+                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
+                  disabled={crashGame.isPlaying}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-white mb-2">Auto Cash Out (optional)</label>
+                <input
+                  type="number"
+                  value={crashGame.auto_cash_out || ''}
+                  onChange={(e) => setCrashGame({...crashGame, auto_cash_out: e.target.value ? parseFloat(e.target.value) : null})}
+                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
+                  placeholder="e.g. 2.5x"
+                  step="0.1"
+                  disabled={crashGame.isPlaying}
+                />
+              </div>
+              
+              {crashGame.isPlaying ? (
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-yellow-400 mb-4">
+                    {crashGame.currentMultiplier.toFixed(2)}x
+                  </div>
+                  <button
+                    onClick={manualCashOut}
+                    className="w-full bg-red-600 text-white py-3 rounded-lg font-bold hover:bg-red-700"
+                  >
+                    CASH OUT NOW!
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={playCrash}
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700"
+                >
+                  Start Crash
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -409,6 +681,26 @@ const App = () => {
           </button>
         </div>
 
+        {/* Stats Dashboard */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg text-center">
+            <h3 className="text-lg font-bold text-white">Total Users</h3>
+            <p className="text-3xl font-bold text-yellow-400">{adminStats.total_users || 0}</p>
+          </div>
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg text-center">
+            <h3 className="text-lg font-bold text-white">Total Bets</h3>
+            <p className="text-3xl font-bold text-blue-400">{adminStats.total_bets || 0}</p>
+          </div>
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg text-center">
+            <h3 className="text-lg font-bold text-white">Total Wagered</h3>
+            <p className="text-3xl font-bold text-green-400">${(adminStats.total_wagered || 0).toFixed(2)}</p>
+          </div>
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg text-center">
+            <h3 className="text-lg font-bold text-white">House Profit</h3>
+            <p className="text-3xl font-bold text-purple-400">${(adminStats.house_profit || 0).toFixed(2)}</p>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Site Configuration */}
           <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg">
@@ -422,16 +714,6 @@ const App = () => {
                   value={configToUpdate.site_title || ''}
                   onChange={(e) => setConfigToUpdate({...configToUpdate, site_title: e.target.value})}
                   className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-white mb-2">Site Description</label>
-                <textarea
-                  value={configToUpdate.site_description || ''}
-                  onChange={(e) => setConfigToUpdate({...configToUpdate, site_description: e.target.value})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                  rows="3"
                 />
               </div>
               
@@ -467,16 +749,6 @@ const App = () => {
                   className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
                 />
               </div>
-              
-              <div>
-                <label className="block text-white mb-2">Hero Subtitle</label>
-                <textarea
-                  value={configToUpdate.hero_subtitle || ''}
-                  onChange={(e) => setConfigToUpdate({...configToUpdate, hero_subtitle: e.target.value})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                  rows="3"
-                />
-              </div>
             </div>
           </div>
 
@@ -504,46 +776,6 @@ const App = () => {
                   onChange={(e) => setConfigToUpdate({...configToUpdate, mercadopago_public_key: e.target.value})}
                   className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
                   placeholder="TEST-xxxx or APP_USR-xxxx"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-white mb-2">Client ID</label>
-                <input
-                  type="text"
-                  value={configToUpdate.mercadopago_client_id || ''}
-                  onChange={(e) => setConfigToUpdate({...configToUpdate, mercadopago_client_id: e.target.value})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-white mb-2">Client Secret</label>
-                <input
-                  type="password"
-                  value={configToUpdate.mercadopago_client_secret || ''}
-                  onChange={(e) => setConfigToUpdate({...configToUpdate, mercadopago_client_secret: e.target.value})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-white mb-2">Minimum Deposit</label>
-                <input
-                  type="number"
-                  value={configToUpdate.min_deposit || 10}
-                  onChange={(e) => setConfigToUpdate({...configToUpdate, min_deposit: parseFloat(e.target.value)})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-white mb-2">Maximum Deposit</label>
-                <input
-                  type="number"
-                  value={configToUpdate.max_deposit || 10000}
-                  onChange={(e) => setConfigToUpdate({...configToUpdate, max_deposit: parseFloat(e.target.value)})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
                 />
               </div>
             </div>
