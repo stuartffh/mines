@@ -443,9 +443,10 @@ const App = () => {
             {user ? (
               <>
                 <span className="text-white">Balance: ${user.balance?.toFixed(2) || '0.00'}</span>
+                <button onClick={() => setCurrentPage('wallet')} className="text-white hover:text-yellow-400">Wallet</button>
                 <button onClick={() => setCurrentPage('games')} className="text-white hover:text-yellow-400">Games</button>
                 {user.is_admin && (
-                  <button onClick={() => { setCurrentPage('admin'); loadAdminConfig(); loadGameConfigs(); loadAdminStats(); }} className="text-white hover:text-yellow-400">Admin</button>
+                  <button onClick={() => { setCurrentPage('admin'); loadAdminConfig(); loadGameConfigs(); loadAdminStats(); loadPendingWithdrawals(); }} className="text-white hover:text-yellow-400">Admin</button>
                 )}
                 <button onClick={handleLogout} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</button>
               </>
