@@ -736,7 +736,6 @@ async def play_crash_game(crash_data: CrashPlay, current_user: User = Depends(ge
         "auto_cash_out": crash_data.auto_cash_out
     }
 
-# Stats endpoints
 @api_router.get("/admin/stats")
 async def get_admin_stats(admin_user: User = Depends(get_admin_user)):
     """Get admin dashboard statistics"""
@@ -751,7 +750,7 @@ async def get_admin_stats(admin_user: User = Depends(get_admin_user)):
             "total_payout": {"$sum": "$payout"}
         }}
     ]
-    result = await db.bets.aggregate(pipeline).to_list(1)
+    result = list(await db.bets.aggregate(pipeline).to_list(1))
     total_wagered = result[0]["total_wagered"] if result else 0
     total_payout = result[0]["total_payout"] if result else 0
     house_profit = total_wagered - total_payout
@@ -768,7 +767,7 @@ async def get_admin_stats(admin_user: User = Depends(get_admin_user)):
                 "total_payout": {"$sum": "$payout"}
             }}
         ]
-        game_result = await db.bets.aggregate(game_pipeline).to_list(1)
+        game_result = list(await db.bets.aggregate(game_pipeline).to_list(1))
         if game_result:
             game_stats[game_type] = game_result[0]
         else:
