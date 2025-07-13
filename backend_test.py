@@ -333,7 +333,10 @@ def main():
         ("Get User Info", lambda: tester.test_get_user_info()),
         ("Admin Configuration", lambda: tester.test_admin_config()),
         ("Update Admin Config", lambda: tester.test_update_admin_config()),
+        ("Game Configurations", lambda: tester.test_game_configs()),
         ("Dice Game", lambda: tester.test_dice_game()),
+        ("Mines Game", lambda: tester.test_mines_game()),
+        ("Crash Game", lambda: tester.test_crash_game()),
         ("Admin Statistics", lambda: tester.test_admin_stats()),
     ]
 
