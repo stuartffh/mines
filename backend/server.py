@@ -125,6 +125,23 @@ class CrashPlay(BaseModel):
     amount: float
     auto_cash_out: Optional[float] = None
 
+class DepositRequest(BaseModel):
+    amount: float
+
+class WithdrawRequest(BaseModel):
+    amount: float
+    payment_method: str = "pix"  # Default to PIX for Brazil
+
+class PaymentWebhook(BaseModel):
+    action: str
+    api_version: str
+    data: Dict[str, Any]
+    date_created: str
+    id: int
+    live_mode: bool
+    type: str
+    user_id: str
+
 # Utility functions
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
