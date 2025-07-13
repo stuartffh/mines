@@ -215,7 +215,6 @@ def generate_crash_multiplier(seed: str):
     crash_point = max(1.01, min(result / 100, 10000.0))
     return round(crash_point, 2)
 
-# Authentication endpoints
 @api_router.post("/auth/register")
 async def register(user_data: UserCreate):
     # Check if user exists
@@ -238,9 +237,32 @@ async def register(user_data: UserCreate):
     )
     
     await db.users.insert_one(user.dict())
+    
+    # Initialize game configurations if this is the first user (admin)
+    if is_admin:
+        await initialize_game_configs()
+    
     access_token = create_access_token(data={"sub": user.username}, expires_delta=timedelta(days=7))
     
     return {"access_token": access_token, "token_type": "bearer", "user": {"username": user.username, "is_admin": user.is_admin}}
+
+async def initialize_game_configs():
+    """Initialize default game configurations"""
+    # Check if configs already exist
+    existing_configs = await db.game_config.count_documents({})
+    if existing_configs > 0:
+        return
+    
+    # Set default configurations
+    defaults = [
+        {"game_type": "dice", "settings": {"min_bet": 1.0, "max_bet": 1000.0, "house_edge": 0.01, "max_multiplier": 99.0}},
+        {"game_type": "mines", "settings": {"min_bet": 1.0, "max_bet": 1000.0, "house_edge": 0.01, "grid_size": 25, "max_mines": 24, "min_mines": 1}},
+        {"game_type": "crash", "settings": {"min_bet": 1.0, "max_bet": 1000.0, "house_edge": 0.01, "max_multiplier": 10000.0}}
+    ]
+    
+    for default in defaults:
+        config = GameConfig(**default)
+        await db.game_config.insert_one(config.dict())
 
 @api_router.post("/auth/login")
 async def login(user_data: UserLogin):
