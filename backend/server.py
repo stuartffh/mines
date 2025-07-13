@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, File, UploadFile, HTTPException, Depends, Form
+from fastapi import FastAPI, APIRouter, File, UploadFile, HTTPException, Depends, Form, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
@@ -20,6 +20,7 @@ from passlib.context import CryptContext
 import aiofiles
 import random
 import math
+from payment_service import get_mp_service
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
