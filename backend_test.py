@@ -316,6 +316,178 @@ class GameHubAPITester:
             print(f"   ✓ House Profit: {response.get('house_profit')}")
         return success
 
+    # PAYMENT SYSTEM TESTS
+    def test_create_deposit(self):
+        """Test creating a deposit payment preference"""
+        deposit_data = {
+            "amount": 50.0
+        }
+        
+        success, response = self.run_test(
+            "Create Deposit",
+            "POST",
+            "payments/deposit/create",
+            200,
+            data=deposit_data
+        )
+        
+        if success:
+            print(f"   ✓ Transaction ID: {response.get('transaction_id')}")
+            print(f"   ✓ Preference ID: {response.get('preference_id')}")
+            print(f"   ✓ Init Point: {response.get('init_point')}")
+            print(f"   ✓ Amount: {response.get('amount')}")
+            return response.get('transaction_id')
+        return None
+
+    def test_payment_status(self, transaction_id):
+        """Test getting payment status"""
+        if not transaction_id:
+            print("   ⚠️ Skipping payment status test - no transaction ID")
+            return True
+            
+        success, response = self.run_test(
+            "Get Payment Status",
+            "GET",
+            f"payments/status/{transaction_id}",
+            200
+        )
+        
+        if success:
+            print(f"   ✓ Status: {response.get('status')}")
+            print(f"   ✓ Amount: {response.get('amount')}")
+            print(f"   ✓ Type: {response.get('type')}")
+        return success
+
+    def test_payment_history(self):
+        """Test getting payment history"""
+        success, response = self.run_test(
+            "Get Payment History",
+            "GET",
+            "payments/history",
+            200
+        )
+        
+        if success:
+            transactions = response.get('transactions', [])
+            print(f"   ✓ Found {len(transactions)} transactions")
+            for i, tx in enumerate(transactions[:3]):  # Show first 3
+                print(f"   ✓ Transaction {i+1}: {tx.get('type')} - ${tx.get('amount')} - {tx.get('status')}")
+        return success
+
+    def test_request_withdrawal(self):
+        """Test requesting a withdrawal"""
+        withdraw_data = {
+            "amount": 20.0,
+            "payment_method": "pix"
+        }
+        
+        success, response = self.run_test(
+            "Request Withdrawal",
+            "POST",
+            "payments/withdraw/request",
+            200,
+            data=withdraw_data
+        )
+        
+        if success:
+            print(f"   ✓ Transaction ID: {response.get('transaction_id')}")
+            print(f"   ✓ Amount: {response.get('amount')}")
+            print(f"   ✓ New Balance: {response.get('new_balance')}")
+            print(f"   ✓ Status: {response.get('status')}")
+            return response.get('transaction_id')
+        return None
+
+    def test_admin_pending_withdrawals(self):
+        """Test getting pending withdrawals (admin only)"""
+        if not self.user_data or not self.user_data.get('is_admin'):
+            print("   ⚠️ Skipping pending withdrawals test - user is not admin")
+            return True
+            
+        success, response = self.run_test(
+            "Get Pending Withdrawals",
+            "GET",
+            "admin/payments/withdrawals",
+            200
+        )
+        
+        if success:
+            withdrawals = response.get('withdrawals', [])
+            print(f"   ✓ Found {len(withdrawals)} pending withdrawals")
+            for i, withdrawal in enumerate(withdrawals[:3]):  # Show first 3
+                print(f"   ✓ Withdrawal {i+1}: ${withdrawal.get('amount')} - {withdrawal.get('status')}")
+            return withdrawals
+        return []
+
+    def test_approve_withdrawal(self, withdrawal_id):
+        """Test approving a withdrawal (admin only)"""
+        if not self.user_data or not self.user_data.get('is_admin'):
+            print("   ⚠️ Skipping withdrawal approval test - user is not admin")
+            return True
+            
+        if not withdrawal_id:
+            print("   ⚠️ Skipping withdrawal approval test - no withdrawal ID")
+            return True
+            
+        success, response = self.run_test(
+            "Approve Withdrawal",
+            "POST",
+            f"admin/payments/withdrawals/{withdrawal_id}/approve",
+            200
+        )
+        
+        if success:
+            print(f"   ✓ Withdrawal approved: {response.get('message')}")
+        return success
+
+    def test_reject_withdrawal(self, withdrawal_id):
+        """Test rejecting a withdrawal (admin only)"""
+        if not self.user_data or not self.user_data.get('is_admin'):
+            print("   ⚠️ Skipping withdrawal rejection test - user is not admin")
+            return True
+            
+        if not withdrawal_id:
+            print("   ⚠️ Skipping withdrawal rejection test - no withdrawal ID")
+            return True
+            
+        # Add reason as query parameter
+        success, response = self.run_test(
+            "Reject Withdrawal",
+            "POST",
+            f"admin/payments/withdrawals/{withdrawal_id}/reject?reason=Test rejection",
+            200
+        )
+        
+        if success:
+            print(f"   ✓ Withdrawal rejected: {response.get('message')}")
+        return success
+
+    def test_payment_webhook(self):
+        """Test payment webhook endpoint (basic structure test)"""
+        # This is a basic test to see if the endpoint exists
+        # Real webhook testing would require MercadoPago integration
+        webhook_data = {
+            "action": "payment.updated",
+            "api_version": "v1",
+            "data": {"id": "test_payment_id"},
+            "date_created": "2024-01-01T00:00:00Z",
+            "id": 12345,
+            "live_mode": False,
+            "type": "payment",
+            "user_id": "test_user"
+        }
+        
+        success, response = self.run_test(
+            "Payment Webhook",
+            "POST",
+            "payments/webhook",
+            200,
+            data=webhook_data
+        )
+        
+        if success:
+            print(f"   ✓ Webhook response: {response.get('status', 'OK')}")
+        return success
+
 def main():
     print("🎮 Starting GameHub Pro API Tests")
     print("=" * 50)
