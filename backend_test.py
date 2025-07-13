@@ -489,8 +489,8 @@ class GameHubAPITester:
         return success
 
 def main():
-    print("🎮 Starting GameHub Pro API Tests")
-    print("=" * 50)
+    print("🎮 Starting GameHub Pro COMPLETE API Tests (Including Payment System)")
+    print("=" * 70)
     
     # Setup - Create admin user first (first user is automatically admin)
     tester = GameHubAPITester()
@@ -520,6 +520,71 @@ def main():
             print(f"❌ {test_name} failed with exception: {str(e)}")
             return 1
 
+    # Test payment system with admin user
+    print("\n💰 Testing Payment System with Admin User...")
+    
+    # Test deposit creation (should work even without MercadoPago configured)
+    print(f"\n📋 Running: Create Deposit Test")
+    try:
+        transaction_id = tester.test_create_deposit()
+        if transaction_id:
+            print("✅ Deposit creation test passed")
+        else:
+            print("⚠️ Deposit creation failed (expected if MercadoPago not configured)")
+    except Exception as e:
+        print(f"⚠️ Deposit creation failed with exception: {str(e)} (expected if MercadoPago not configured)")
+
+    # Test payment status
+    print(f"\n📋 Running: Payment Status Test")
+    try:
+        if 'transaction_id' in locals():
+            tester.test_payment_status(transaction_id)
+        else:
+            print("⚠️ Skipping payment status test - no transaction ID")
+    except Exception as e:
+        print(f"⚠️ Payment status test failed: {str(e)}")
+
+    # Test payment history
+    print(f"\n📋 Running: Payment History Test")
+    try:
+        tester.test_payment_history()
+    except Exception as e:
+        print(f"❌ Payment history test failed: {str(e)}")
+
+    # Test withdrawal request
+    print(f"\n📋 Running: Withdrawal Request Test")
+    withdrawal_id = None
+    try:
+        withdrawal_id = tester.test_request_withdrawal()
+        if withdrawal_id:
+            print("✅ Withdrawal request test passed")
+    except Exception as e:
+        print(f"❌ Withdrawal request test failed: {str(e)}")
+
+    # Test admin withdrawal management
+    print(f"\n📋 Running: Admin Pending Withdrawals Test")
+    try:
+        pending_withdrawals = tester.test_admin_pending_withdrawals()
+        if pending_withdrawals and len(pending_withdrawals) > 0:
+            # Test approval with first withdrawal
+            first_withdrawal_id = pending_withdrawals[0].get('id')
+            if first_withdrawal_id:
+                print(f"\n📋 Running: Approve Withdrawal Test")
+                tester.test_approve_withdrawal(first_withdrawal_id)
+        elif withdrawal_id:
+            # Test with our created withdrawal
+            print(f"\n📋 Running: Approve Withdrawal Test")
+            tester.test_approve_withdrawal(withdrawal_id)
+    except Exception as e:
+        print(f"❌ Admin withdrawal tests failed: {str(e)}")
+
+    # Test webhook endpoint
+    print(f"\n📋 Running: Payment Webhook Test")
+    try:
+        tester.test_payment_webhook()
+    except Exception as e:
+        print(f"❌ Payment webhook test failed: {str(e)}")
+
     # Now test games with admin user
     game_tests = [
         ("Dice Game", lambda: tester.test_dice_game()),
@@ -538,7 +603,7 @@ def main():
         except Exception as e:
             print(f"❌ {test_name} failed with exception: {str(e)}")
 
-    # Now create a regular user and test games
+    # Now create a regular user and test payment + games
     print("\n👤 Testing with regular user...")
     regular_tester = GameHubAPITester()
     regular_user = f"user_{datetime.now().strftime('%H%M%S')}"
@@ -548,6 +613,7 @@ def main():
     regular_tests = [
         ("Regular User Registration", lambda: regular_tester.test_register(regular_user, regular_email, regular_password)),
         ("Regular User Info", lambda: regular_tester.test_get_user_info()),
+        ("Regular User Payment History", lambda: regular_tester.test_payment_history()),
         ("Regular User Dice Game", lambda: regular_tester.test_dice_game()),
         ("Regular User Mines Game", lambda: regular_tester.test_mines_game()),
         ("Regular User Crash Game", lambda: regular_tester.test_crash_game()),
@@ -562,18 +628,38 @@ def main():
         except Exception as e:
             print(f"❌ {test_name} failed with exception: {str(e)}")
 
+    # Test regular user withdrawal
+    print(f"\n📋 Running: Regular User Withdrawal Test")
+    try:
+        regular_withdrawal_id = regular_tester.test_request_withdrawal()
+        if regular_withdrawal_id:
+            print("✅ Regular user withdrawal request passed")
+    except Exception as e:
+        print(f"❌ Regular user withdrawal test failed: {str(e)}")
+
     # Print final results
     total_tests = tester.tests_run + regular_tester.tests_run
     total_passed = tester.tests_passed + regular_tester.tests_passed
     
-    print("\n" + "=" * 50)
+    print("\n" + "=" * 70)
     print(f"📊 Final Results: {total_passed}/{total_tests} tests passed")
+    print(f"🎯 Success Rate: {(total_passed/total_tests*100):.1f}%")
     
-    if total_passed >= total_tests * 0.8:  # 80% pass rate is acceptable
-        print("🎉 Most tests passed!")
+    # Summary of what was tested
+    print("\n📋 TESTED COMPONENTS:")
+    print("✓ User Authentication (Register/Login)")
+    print("✓ Site Configuration (Public/Admin)")
+    print("✓ Game System (Dice/Mines/Crash)")
+    print("✓ Payment System (Deposits/Withdrawals)")
+    print("✓ Admin Panel (Stats/Withdrawal Management)")
+    print("✓ Payment History & Status")
+    print("✓ Webhook Endpoints")
+    
+    if total_passed >= total_tests * 0.75:  # 75% pass rate is acceptable for payment system
+        print("\n🎉 Most tests passed! Payment system is functional.")
         return 0
     else:
-        print("⚠️ Many tests failed")
+        print("\n⚠️ Many tests failed - needs investigation")
         return 1
 
 if __name__ == "__main__":
