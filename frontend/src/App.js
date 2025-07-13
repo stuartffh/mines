@@ -902,6 +902,8 @@ const App = () => {
         return renderGames();
       case 'admin':
         return user?.is_admin ? renderAdmin() : renderHome();
+      case 'wallet':
+        return renderWallet();
       default:
         return renderHome();
     }
