@@ -907,6 +907,158 @@ const App = () => {
     }
   };
 
+  const renderWallet = () => (
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-purple-900 p-8">
+      <div className="container mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-bold text-white">Wallet</h1>
+          <button onClick={() => setCurrentPage('home')} className="text-white hover:text-yellow-400">
+            Back to Home
+          </button>
+        </div>
+
+        {/* Balance Card */}
+        <div className="bg-white bg-opacity-10 backdrop-blur-md p-8 rounded-lg mb-8 text-center">
+          <h2 className="text-2xl font-bold text-white mb-4">Current Balance</h2>
+          <p className="text-5xl font-bold text-yellow-400">${user?.balance?.toFixed(2) || '0.00'}</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Deposit Section */}
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg">
+            <h2 className="text-2xl font-bold text-white mb-6">💰 Deposit Money</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white mb-2">Amount to Deposit</label>
+                <input
+                  type="number"
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(parseFloat(e.target.value))}
+                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
+                  min="10"
+                  max="10000"
+                  step="10"
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                {[50, 100, 200, 500].map(amount => (
+                  <button
+                    key={amount}
+                    onClick={() => setDepositAmount(amount)}
+                    className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+                  >
+                    ${amount}
+                  </button>
+                ))}
+              </div>
+              
+              <button
+                onClick={createDeposit}
+                className="w-full bg-green-600 text-white py-3 rounded-lg text-xl font-bold hover:bg-green-700"
+              >
+                Deposit via MercadoPago
+              </button>
+              
+              <p className="text-gray-300 text-sm">
+                Secure payment via MercadoPago. Supports credit cards, bank transfers, and PIX.
+              </p>
+            </div>
+          </div>
+
+          {/* Withdrawal Section */}
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg">
+            <h2 className="text-2xl font-bold text-white mb-6">🏦 Withdraw Money</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white mb-2">Amount to Withdraw</label>
+                <input
+                  type="number"
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(parseFloat(e.target.value))}
+                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
+                  min="20"
+                  max={user?.balance || 0}
+                  step="10"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-white mb-2">Payment Method</label>
+                <select className="w-full p-3 rounded bg-white bg-opacity-20 text-white">
+                  <option value="pix">PIX (Instant)</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                </select>
+              </div>
+              
+              <button
+                onClick={requestWithdrawal}
+                className="w-full bg-yellow-600 text-white py-3 rounded-lg text-xl font-bold hover:bg-yellow-700"
+                disabled={!user?.balance || user.balance < withdrawAmount}
+              >
+                Request Withdrawal
+              </button>
+              
+              <p className="text-gray-300 text-sm">
+                Withdrawals are processed within 24 hours after admin approval.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment History */}
+        <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg mt-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-white">📋 Payment History</h2>
+            <button 
+              onClick={loadPaymentHistory}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              Refresh
+            </button>
+          </div>
+          
+          {paymentHistory.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-white">
+                <thead>
+                  <tr className="border-b border-gray-600">
+                    <th className="text-left p-2">Type</th>
+                    <th className="text-left p-2">Amount</th>
+                    <th className="text-left p-2">Status</th>
+                    <th className="text-left p-2">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentHistory.map((transaction) => (
+                    <tr key={transaction.id} className="border-b border-gray-700">
+                      <td className="p-2 capitalize">{transaction.type}</td>
+                      <td className="p-2">${transaction.amount.toFixed(2)}</td>
+                      <td className="p-2">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          transaction.status === 'completed' ? 'bg-green-600' :
+                          transaction.status === 'pending' ? 'bg-yellow-600' :
+                          'bg-red-600'
+                        }`}>
+                          {transaction.status}
+                        </span>
+                      </td>
+                      <td className="p-2">{new Date(transaction.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-gray-300 text-center py-8">No payment history found</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return renderCurrentPage();
 };
 
