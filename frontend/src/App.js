@@ -392,6 +392,12 @@ const App = () => {
           );
         }
         getUserInfo();
+        
+        // Auto-reset after 3 seconds for new game
+        setTimeout(() => {
+          setCrashGameState({ isPlaying: false, gameEnded: false });
+          setCrashGame(prev => ({ ...prev, currentMultiplier: 1.0 }));
+        }, 3000);
       }
     } catch (error) {
       addNotification('error', 'Error', error.response?.data?.detail || 'Unknown error');
@@ -401,7 +407,7 @@ const App = () => {
   const simulateCrashGame = (crashPoint) => {
     let currentMult = 1.0;
     const interval = setInterval(() => {
-      currentMult += 0.01;
+      currentMult += 0.02; // Slightly faster increment
       setCrashGame(prev => ({ ...prev, currentMultiplier: currentMult }));
       
       if (currentMult >= crashPoint) {
@@ -411,15 +417,9 @@ const App = () => {
         
         addNotification('loss', '💥 Crashed!', 
           `Crashed at ${crashPoint.toFixed(2)}x`, 
-          crashGame.auto_cash_out && crashGame.auto_cash_out <= crashPoint ? null : -crashGame.amount
+          -crashGame.amount
         );
         getUserInfo();
-        
-        // Reset after showing crash
-        setTimeout(() => {
-          setCrashGameState({ isPlaying: false, gameEnded: false });
-          setCrashGame(prev => ({ ...prev, currentMultiplier: 1.0 }));
-        }, 3000);
       }
     }, 100);
   };
@@ -440,10 +440,17 @@ const App = () => {
     
     getUserInfo();
     
-    // Reset multiplier
+    // Reset multiplier for new game
     setTimeout(() => {
       setCrashGame(prev => ({ ...prev, currentMultiplier: 1.0 }));
     }, 1000);
+  };
+
+  // Auto-reset function for crash game
+  const handleCrashGameReset = () => {
+    setCrashGameState({ isPlaying: false, gameEnded: false });
+    setCrashGame(prev => ({ ...prev, currentMultiplier: 1.0, isPlaying: false }));
+    addNotification('info', '🎮 Ready to Play', 'Place your bet for the next round!');
   };
 
   // Admin functions
