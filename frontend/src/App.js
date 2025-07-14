@@ -35,11 +35,31 @@ const App = () => {
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [pendingWithdrawals, setPendingWithdrawals] = useState([]);
 
+  // Animation state
+  const [diceRolling, setDiceRolling] = useState(false);
+  const [crashGameState, setCrashGameState] = useState({ isPlaying: false, gameEnded: false });
+  const [notifications, setNotifications] = useState([]);
+
   // Admin state
   const [adminConfig, setAdminConfig] = useState({});
   const [configToUpdate, setConfigToUpdate] = useState({});
   const [gameConfigs, setGameConfigs] = useState({});
   const [adminStats, setAdminStats] = useState({});
+
+  // Notification system
+  const addNotification = (type, title, message, amount = null, duration = 4000) => {
+    const id = Date.now() + Math.random();
+    const notification = { id, type, title, message, amount, duration };
+    setNotifications(prev => [...prev, notification]);
+    
+    setTimeout(() => {
+      removeNotification(id);
+    }, duration);
+  };
+
+  const removeNotification = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
 
   useEffect(() => {
     loadSiteConfig();
