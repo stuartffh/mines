@@ -359,25 +359,38 @@ const App = () => {
   // Crash Game
   const playCrash = async () => {
     try {
+      setCrashGameState({ isPlaying: false, gameEnded: false });
+      
       const response = await axios.post(`${API}/games/crash/play`, crashGame);
       
       if (response.data.result === 'manual') {
         // Start manual crash game simulation
-        setCrashGame({
-          ...crashGame,
-          isPlaying: true,
-          currentMultiplier: 1.0
-        });
+        setCrashGame(prev => ({ ...prev, isPlaying: true, currentMultiplier: 1.0 }));
+        setCrashGameState({ isPlaying: true, gameEnded: false });
+        
+        addNotification('info', '🚀 Crash Started', 'Watch the multiplier grow!');
         
         // Simulate crash game progression
         simulateCrashGame(response.data.crash_point);
       } else {
         // Auto cash out result
-        alert(`Game Over! Crash at ${response.data.crash_point}x. ${response.data.result === 'win' ? `Won $${response.data.payout.toFixed(2)}!` : 'Lost your bet!'}`);
+        setCrashGameState({ isPlaying: false, gameEnded: true });
+        
+        if (response.data.result === 'win') {
+          addNotification('win', '🎉 Auto Win!', 
+            `Cashed out at ${response.data.multiplier}x`, 
+            response.data.payout
+          );
+        } else {
+          addNotification('loss', '💥 Crashed!', 
+            `Crashed at ${response.data.crash_point}x`, 
+            -crashGame.amount
+          );
+        }
         getUserInfo();
       }
     } catch (error) {
-      alert('Crash game error: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Error', error.response?.data?.detail || 'Unknown error');
     }
   };
 
@@ -389,9 +402,20 @@ const App = () => {
       
       if (currentMult >= crashPoint) {
         clearInterval(interval);
+        setCrashGameState({ isPlaying: false, gameEnded: true });
         setCrashGame(prev => ({ ...prev, isPlaying: false }));
-        alert(`💥 Crashed at ${crashPoint}x! ${crashGame.auto_cash_out && crashGame.auto_cash_out <= crashPoint ? 'You won!' : 'You lost!'}`);
+        
+        addNotification('loss', '💥 Crashed!', 
+          `Crashed at ${crashPoint.toFixed(2)}x`, 
+          crashGame.auto_cash_out && crashGame.auto_cash_out <= crashPoint ? null : -crashGame.amount
+        );
         getUserInfo();
+        
+        // Reset after showing crash
+        setTimeout(() => {
+          setCrashGameState({ isPlaying: false, gameEnded: false });
+          setCrashGame(prev => ({ ...prev, currentMultiplier: 1.0 }));
+        }, 3000);
       }
     }, 100);
   };
@@ -399,15 +423,23 @@ const App = () => {
   const manualCashOut = async () => {
     if (!crashGame.isPlaying) return;
     
-    setCrashGame({
-      ...crashGame,
-      isPlaying: false
-    });
+    setCrashGame(prev => ({ ...prev, isPlaying: false }));
+    setCrashGameState({ isPlaying: false, gameEnded: false });
     
     // Calculate payout based on current multiplier
     const payout = crashGame.amount * crashGame.currentMultiplier;
-    alert(`💰 Manual cash out at ${crashGame.currentMultiplier.toFixed(2)}x! Won $${payout.toFixed(2)}!`);
+    
+    addNotification('win', '💰 Manual Cash Out!', 
+      `${crashGame.currentMultiplier.toFixed(2)}x multiplier`, 
+      payout
+    );
+    
     getUserInfo();
+    
+    // Reset multiplier
+    setTimeout(() => {
+      setCrashGame(prev => ({ ...prev, currentMultiplier: 1.0 }));
+    }, 1000);
   };
 
   // Admin functions
