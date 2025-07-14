@@ -219,10 +219,10 @@ const App = () => {
   const approveWithdrawal = async (transactionId) => {
     try {
       await axios.post(`${API}/admin/payments/withdrawals/${transactionId}/approve`);
-      alert('Withdrawal approved!');
+      addNotification('win', '✅ Withdrawal Approved', 'Payment has been processed');
       loadPendingWithdrawals();
     } catch (error) {
-      alert('Error approving withdrawal: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Approval Error', error.response?.data?.detail || 'Unknown error');
     }
   };
 
@@ -232,10 +232,10 @@ const App = () => {
     
     try {
       await axios.post(`${API}/admin/payments/withdrawals/${transactionId}/reject?reason=${encodeURIComponent(reason)}`);
-      alert('Withdrawal rejected and balance refunded!');
+      addNotification('info', '❌ Withdrawal Rejected', 'Balance has been refunded');
       loadPendingWithdrawals();
     } catch (error) {
-      alert('Error rejecting withdrawal: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Rejection Error', error.response?.data?.detail || 'Unknown error');
     }
   };
 
