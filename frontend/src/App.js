@@ -476,11 +476,11 @@ const App = () => {
   const updateAdminConfig = async () => {
     try {
       await axios.post(`${API}/admin/config`, configToUpdate);
-      alert('Configuration updated successfully!');
+      addNotification('win', '⚙️ Configuration Updated', 'All changes have been saved');
       loadSiteConfig();
       loadAdminConfig();
     } catch (error) {
-      alert('Error updating config: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Update Error', error.response?.data?.detail || 'Unknown error');
     }
   };
 
