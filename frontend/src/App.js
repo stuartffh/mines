@@ -521,6 +521,12 @@ const App = () => {
 
   const renderHome = () => (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-purple-900">
+      {/* Notification System */}
+      <NotificationSystem 
+        notifications={notifications} 
+        removeNotification={removeNotification} 
+      />
+      
       {/* Header */}
       <header className="bg-black bg-opacity-50 backdrop-blur-md">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -533,16 +539,16 @@ const App = () => {
           <nav className="flex items-center space-x-6">
             {user ? (
               <>
-                <span className="text-white">Balance: ${user.balance?.toFixed(2) || '0.00'}</span>
-                <button onClick={() => setCurrentPage('wallet')} className="text-white hover:text-yellow-400">Wallet</button>
-                <button onClick={() => setCurrentPage('games')} className="text-white hover:text-yellow-400">Games</button>
+                <span className="text-white animate-balance-update">Balance: ${user.balance?.toFixed(2) || '0.00'}</span>
+                <button onClick={() => setCurrentPage('wallet')} className="text-white hover:text-yellow-400 transition-colors">Wallet</button>
+                <button onClick={() => setCurrentPage('games')} className="text-white hover:text-yellow-400 transition-colors">Games</button>
                 {user.is_admin && (
-                  <button onClick={() => { setCurrentPage('admin'); loadAdminConfig(); loadGameConfigs(); loadAdminStats(); loadPendingWithdrawals(); }} className="text-white hover:text-yellow-400">Admin</button>
+                  <button onClick={() => { setCurrentPage('admin'); loadAdminConfig(); loadGameConfigs(); loadAdminStats(); loadPendingWithdrawals(); }} className="text-white hover:text-yellow-400 transition-colors">Admin</button>
                 )}
-                <button onClick={handleLogout} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</button>
+                <button onClick={handleLogout} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-all">Logout</button>
               </>
             ) : (
-              <button onClick={() => setCurrentPage('auth')} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">Login</button>
+              <button onClick={() => setCurrentPage('auth')} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-all">Login</button>
             )}
           </nav>
         </div>
