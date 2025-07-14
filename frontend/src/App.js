@@ -690,131 +690,151 @@ const App = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Dice Game */}
-          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg game-card">
-            <h2 className="text-2xl font-bold text-white mb-4 text-center">🎲 Dice Game</h2>
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 backdrop-blur-md p-6 rounded-2xl border border-slate-700 game-card">
+            <h2 className="text-3xl font-bold text-white mb-6 text-center flex items-center justify-center space-x-2">
+              <span>🎲</span>
+              <span>Dice Game</span>
+            </h2>
             
             {/* Animated Dice */}
             <AnimatedDice 
               isRolling={diceRolling}
               result={gameResult?.roll || 50}
+              target={diceGame.target}
+              over={diceGame.over}
               onAnimationComplete={onDiceAnimationComplete}
             />
             
             <div className="space-y-4">
-              <div>
-                <label className="block text-white mb-2">Bet Amount</label>
-                <input
-                  type="number"
-                  value={diceGame.amount}
-                  onChange={(e) => setDiceGame({...diceGame, amount: parseFloat(e.target.value)})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                  min="1"
-                  max="1000"
-                  disabled={diceRolling}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-white mb-2 text-sm font-medium">Bet Amount</label>
+                  <input
+                    type="number"
+                    value={diceGame.amount}
+                    onChange={(e) => setDiceGame({...diceGame, amount: parseFloat(e.target.value)})}
+                    className="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    min="1"
+                    max="1000"
+                    disabled={diceRolling}
+                    placeholder="Enter amount"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white mb-2 text-sm font-medium">Target Number</label>
+                  <input
+                    type="number"
+                    value={diceGame.target}
+                    onChange={(e) => setDiceGame({...diceGame, target: parseFloat(e.target.value)})}
+                    className="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    min="0.01"
+                    max="99.99"
+                    step="0.01"
+                    disabled={diceRolling}
+                    placeholder="0.00 - 99.99"
+                  />
+                </div>
               </div>
               
-              <div>
-                <label className="block text-white mb-2">Target Number</label>
-                <input
-                  type="number"
-                  value={diceGame.target}
-                  onChange={(e) => setDiceGame({...diceGame, target: parseFloat(e.target.value)})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                  min="0.01"
-                  max="99.99"
-                  step="0.01"
-                  disabled={diceRolling}
-                />
-              </div>
-              
-              <div className="flex space-x-2">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setDiceGame({...diceGame, over: true})}
                   disabled={diceRolling}
-                  className={`flex-1 py-2 rounded transition-all ${diceGame.over ? 'bg-green-600 scale-105' : 'bg-gray-600'} text-white text-sm`}
+                  className={`py-3 px-4 rounded-lg font-bold transition-all ${
+                    diceGame.over 
+                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white border-2 border-green-400 scale-105 shadow-lg shadow-green-500/30' 
+                      : 'bg-slate-700 border-2 border-slate-600 text-slate-300 hover:bg-slate-600'
+                  }`}
                 >
-                  Over {diceGame.target}
+                  OVER {diceGame.target}
                 </button>
                 <button
                   onClick={() => setDiceGame({...diceGame, over: false})}
                   disabled={diceRolling}
-                  className={`flex-1 py-2 rounded transition-all ${!diceGame.over ? 'bg-red-600 scale-105' : 'bg-gray-600'} text-white text-sm`}
+                  className={`py-3 px-4 rounded-lg font-bold transition-all ${
+                    !diceGame.over 
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 text-white border-2 border-red-400 scale-105 shadow-lg shadow-red-500/30' 
+                      : 'bg-slate-700 border-2 border-slate-600 text-slate-300 hover:bg-slate-600'
+                  }`}
                 >
-                  Under {diceGame.target}
+                  UNDER {diceGame.target}
                 </button>
               </div>
               
               <button
                 onClick={playDice}
-                disabled={diceRolling}
-                className={`w-full py-3 rounded-lg font-bold transition-all ${
+                disabled={diceRolling || diceGame.amount <= 0}
+                className={`w-full py-4 rounded-xl font-bold text-xl transition-all border-2 ${
                   diceRolling 
-                    ? 'bg-gray-600 cursor-not-allowed' 
-                    : 'bg-yellow-500 hover:bg-yellow-400 hover:scale-105'
-                } text-black`}
+                    ? 'bg-slate-600 border-slate-500 text-slate-400 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-yellow-500 to-orange-500 border-yellow-400 text-black hover:scale-105 hover:shadow-xl shadow-yellow-500/30'
+                }`}
               >
-                {diceRolling ? 'Rolling...' : 'Roll Dice'}
+                {diceRolling ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="spinner w-5 h-5"></div>
+                    <span>Rolling...</span>
+                  </div>
+                ) : (
+                  '🎲 ROLL DICE'
+                )}
               </button>
-              
-              {gameResult && gameResult.roll !== undefined && !diceRolling && (
-                <div className={`bg-black bg-opacity-30 p-4 rounded-lg text-white text-sm transition-all duration-500 ${
-                  gameResult.result === 'win' ? 'animate-win-glow' : 'animate-loss-shake'
-                }`}>
-                  <p>Roll: <span className="font-bold text-yellow-400">{gameResult.roll}</span></p>
-                  <p>Result: <span className={`font-bold ${gameResult.result === 'win' ? 'text-green-400' : 'text-red-400'}`}>
-                    {gameResult.result.toUpperCase()}
-                  </span></p>
-                  <p>Payout: ${gameResult.payout.toFixed(2)}</p>
-                </div>
-              )}
             </div>
           </div>
 
           {/* Mines Game */}
-          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg game-card">
-            <h2 className="text-2xl font-bold text-white mb-4 text-center">💣 Mines Game</h2>
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 backdrop-blur-md p-6 rounded-2xl border border-slate-700 game-card">
+            <h2 className="text-3xl font-bold text-white mb-6 text-center flex items-center justify-center space-x-2">
+              <span>💣</span>
+              <span>Mines Game</span>
+            </h2>
             
-            <div className="space-y-4">
-              <div>
-                <label className="block text-white mb-2">Bet Amount</label>
-                <input
-                  type="number"
-                  value={minesGame.amount}
-                  onChange={(e) => setMinesGame({...minesGame, amount: parseFloat(e.target.value)})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                  disabled={minesGame.gameId}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-white mb-2">Mines Count</label>
-                <input
-                  type="number"
-                  value={minesGame.mines_count}
-                  onChange={(e) => setMinesGame({...minesGame, mines_count: parseInt(e.target.value)})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                  min="1"
-                  max="24"
-                  disabled={minesGame.gameId}
-                />
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-white mb-2 text-sm font-medium">Bet Amount</label>
+                  <input
+                    type="number"
+                    value={minesGame.amount}
+                    onChange={(e) => setMinesGame({...minesGame, amount: parseFloat(e.target.value)})}
+                    className="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    disabled={minesGame.gameId}
+                    placeholder="Enter amount"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white mb-2 text-sm font-medium">Mines Count</label>
+                  <input
+                    type="number"
+                    value={minesGame.mines_count}
+                    onChange={(e) => setMinesGame({...minesGame, mines_count: parseInt(e.target.value)})}
+                    className="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    min="1"
+                    max="24"
+                    disabled={minesGame.gameId}
+                    placeholder="1-24 mines"
+                  />
+                </div>
               </div>
               
               {!minesGame.gameId ? (
                 <button
                   onClick={startMinesGame}
-                  className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 hover:scale-105 transition-all"
+                  disabled={minesGame.amount <= 0}
+                  className="w-full bg-gradient-to-r from-green-500 to-green-600 border-2 border-green-400 text-white py-4 rounded-xl text-xl font-bold hover:scale-105 transition-all hover:shadow-xl shadow-green-500/30"
                 >
-                  Start Game
+                  🚀 START GAME
                 </button>
               ) : (
                 <button
                   onClick={cashoutMines}
-                  className="w-full bg-yellow-500 text-black py-2 rounded-lg font-bold hover:bg-yellow-400 mb-4 animate-cash-out-pulse"
+                  className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 border-2 border-yellow-400 text-black py-3 rounded-xl font-bold hover:scale-105 transition-all animate-pulse shadow-lg shadow-yellow-500/50"
                 >
-                  Cash Out
+                  💰 CASH OUT {minesGame.currentMultiplier.toFixed(2)}x
                 </button>
               )}
               
@@ -829,32 +849,38 @@ const App = () => {
           </div>
 
           {/* Crash Game */}
-          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg game-card">
-            <h2 className="text-2xl font-bold text-white mb-4 text-center">🚀 Crash Game</h2>
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 backdrop-blur-md p-6 rounded-2xl border border-slate-700 game-card">
+            <h2 className="text-3xl font-bold text-white mb-6 text-center flex items-center justify-center space-x-2">
+              <span>🚀</span>
+              <span>Crash Game</span>
+            </h2>
             
-            <div className="space-y-4">
-              <div>
-                <label className="block text-white mb-2">Bet Amount</label>
-                <input
-                  type="number"
-                  value={crashGame.amount}
-                  onChange={(e) => setCrashGame({...crashGame, amount: parseFloat(e.target.value)})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                  disabled={crashGameState.isPlaying}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-white mb-2">Auto Cash Out (optional)</label>
-                <input
-                  type="number"
-                  value={crashGame.auto_cash_out || ''}
-                  onChange={(e) => setCrashGame({...crashGame, auto_cash_out: e.target.value ? parseFloat(e.target.value) : null})}
-                  className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                  placeholder="e.g. 2.5x"
-                  step="0.1"
-                  disabled={crashGameState.isPlaying}
-                />
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-white mb-2 text-sm font-medium">Bet Amount</label>
+                  <input
+                    type="number"
+                    value={crashGame.amount}
+                    onChange={(e) => setCrashGame({...crashGame, amount: parseFloat(e.target.value)})}
+                    className="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    disabled={crashGameState.isPlaying}
+                    placeholder="Enter amount"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white mb-2 text-sm font-medium">Auto Cash Out</label>
+                  <input
+                    type="number"
+                    value={crashGame.auto_cash_out || ''}
+                    onChange={(e) => setCrashGame({...crashGame, auto_cash_out: e.target.value ? parseFloat(e.target.value) : null})}
+                    className="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="e.g. 2.5x (optional)"
+                    step="0.1"
+                    disabled={crashGameState.isPlaying}
+                  />
+                </div>
               </div>
               
               {/* Animated Crash Component */}
@@ -864,14 +890,16 @@ const App = () => {
                 onCashOut={manualCashOut}
                 crashPoint={gameResult?.crash_point}
                 gameEnded={crashGameState.gameEnded}
+                onGameReset={handleCrashGameReset}
               />
               
               {!crashGameState.isPlaying && !crashGameState.gameEnded && (
                 <button
                   onClick={playCrash}
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 hover:scale-105 transition-all"
+                  disabled={crashGame.amount <= 0}
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 border-2 border-blue-400 text-white py-4 rounded-xl text-xl font-bold hover:scale-105 transition-all hover:shadow-xl shadow-blue-500/30"
                 >
-                  Start Crash
+                  🚀 START CRASH
                 </button>
               )}
             </div>
