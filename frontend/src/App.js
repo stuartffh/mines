@@ -868,6 +868,12 @@ const App = () => {
 
   const renderAdmin = () => (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-purple-900 p-8">
+      {/* Notification System */}
+      <NotificationSystem 
+        notifications={notifications} 
+        removeNotification={removeNotification} 
+      />
+      
       <div className="container mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl font-bold text-white">Admin Panel</h1>
