@@ -1,0 +1,55 @@
+# EasyPanel Compatible Docker Compose
+# Optimized for EasyPanel deployment
+
+version: '3.8'
+
+services:
+  # Main Application (Frontend + Backend + Nginx)
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017/gamehub_pro
+      - DB_NAME=gamehub_pro
+      - SECRET_KEY=${SECRET_KEY}
+      - MERCADOPAGO_ACCESS_TOKEN=${MERCADOPAGO_ACCESS_TOKEN}
+      - MERCADOPAGO_PUBLIC_KEY=${MERCADOPAGO_PUBLIC_KEY}
+      - MERCADOPAGO_CLIENT_ID=${MERCADOPAGO_CLIENT_ID}
+      - MERCADOPAGO_CLIENT_SECRET=${MERCADOPAGO_CLIENT_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - BACKEND_URL=${BACKEND_URL}
+    volumes:
+      - uploads:/app/backend/uploads
+    depends_on:
+      - mongodb
+    networks:
+      - gamehub
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gamehub.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.gamehub.entrypoints=websecure"
+      - "traefik.http.routers.gamehub.tls.certresolver=letsencrypt"
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: gamehub_pro
+    volumes:
+      - mongodb_data:/data/db
+      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - gamehub
+
+volumes:
+  mongodb_data:
+  uploads:
+
+networks:
+  gamehub:
+    driver: bridge

@@ -1,0 +1,79 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Node.js
+frontend/node_modules
+frontend/.next
+frontend/build
+frontend/dist
+frontend/coverage
+frontend/.nyc_output
+
+# Python
+backend/__pycache__
+backend/.pytest_cache
+backend/.coverage
+backend/venv
+backend/env
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Testing
+frontend/coverage
+backend/coverage
+test-results
+
+# Build artifacts
+dist/
+build/
+*.tar.gz
+
+# Temporary files
+tmp/
+temp/
+logs/
+*.tmp
+
+# Uploads (will be handled by volumes)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Database
+*.sqlite
+*.db
+
+# Backups
+backups/
+
+# Scripts (not needed in container)
+scripts/
+docker/
+!docker/nginx.conf
+!docker/supervisord.conf
+!docker/start.sh
+!docker/mongo-init.js
