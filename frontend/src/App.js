@@ -285,9 +285,11 @@ const App = () => {
         grid: Array(25).fill('hidden'),
         currentMultiplier: response.data.current_multiplier
       });
+      
+      addNotification('info', '🎮 Game Started', `${minesGame.mines_count} mines hidden in the grid`);
       getUserInfo(); // Refresh balance
     } catch (error) {
-      alert('Error starting mines game: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Error', error.response?.data?.detail || 'Unknown error');
     }
   };
 
@@ -314,7 +316,8 @@ const App = () => {
           gameId: null
         });
         
-        alert(`💥 You hit a mine! Game over. Lost $${minesGame.amount}`);
+        addNotification('loss', '💥 Mine Hit!', 'Game over - try again!', -minesGame.amount);
+        getUserInfo();
       } else {
         // Safe tile
         newGrid[position] = 'safe';
@@ -323,9 +326,11 @@ const App = () => {
           grid: newGrid,
           currentMultiplier: response.data.current_multiplier
         });
+        
+        addNotification('win', '💎 Safe!', `Multiplier: ${response.data.current_multiplier.toFixed(2)}x`);
       }
     } catch (error) {
-      alert('Error revealing tile: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Error', error.response?.data?.detail || 'Unknown error');
     }
   };
 
@@ -341,10 +346,13 @@ const App = () => {
         grid: Array(25).fill('hidden')
       });
       
-      alert(`💰 Cashed out! Won $${response.data.payout.toFixed(2)} with ${response.data.multiplier}x multiplier!`);
+      addNotification('win', '💰 Cashed Out!', 
+        `${response.data.multiplier.toFixed(2)}x multiplier`, 
+        response.data.payout
+      );
       getUserInfo(); // Refresh balance
     } catch (error) {
-      alert('Error cashing out: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Error', error.response?.data?.detail || 'Unknown error');
     }
   };
 
