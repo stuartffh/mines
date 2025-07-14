@@ -152,10 +152,12 @@ const App = () => {
       // Redirect to MercadoPago checkout
       window.open(response.data.init_point, '_blank');
       
+      addNotification('info', '💳 Deposit Created', 'Opening MercadoPago checkout...');
+      
       // Start checking payment status
       checkPaymentStatus(response.data.transaction_id);
     } catch (error) {
-      alert('Error creating deposit: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Deposit Error', error.response?.data?.detail || 'Unknown error');
     }
   };
 
@@ -165,12 +167,12 @@ const App = () => {
         const response = await axios.get(`${API}/payments/status/${transactionId}`);
         if (response.data.status === 'completed') {
           clearInterval(interval);
-          alert('Deposit completed successfully!');
+          addNotification('win', '💰 Deposit Completed!', 'Money added to your account', response.data.amount);
           getUserInfo(); // Refresh balance
           loadPaymentHistory();
         } else if (response.data.status === 'failed' || response.data.status === 'rejected') {
           clearInterval(interval);
-          alert('Payment failed or was rejected');
+          addNotification('error', 'Payment Failed', 'Your payment was not processed');
         }
       } catch (error) {
         console.error('Error checking payment status:', error);
@@ -188,11 +190,11 @@ const App = () => {
         payment_method: 'pix'
       });
       
-      alert('Withdrawal request submitted! You will receive the money after admin approval.');
+      addNotification('info', '🏦 Withdrawal Requested', 'Awaiting admin approval', -withdrawAmount);
       getUserInfo(); // Refresh balance
       loadPaymentHistory();
     } catch (error) {
-      alert('Error requesting withdrawal: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Withdrawal Error', error.response?.data?.detail || 'Unknown error');
     }
   };
 
