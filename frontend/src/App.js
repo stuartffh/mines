@@ -113,11 +113,12 @@ const App = () => {
       const response = await axios.post(`${API}/auth/login`, loginForm);
       localStorage.setItem('token', response.data.access_token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
-      setUser(response.data.user);
+      setUser({...response.data.user, balance: response.data.user.balance || 0});
       setCurrentPage('home');
       setLoginForm({ username: '', password: '' });
+      addNotification('win', '🎉 Welcome Back!', `Logged in as ${response.data.user.username}`);
     } catch (error) {
-      alert('Login failed: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Login Failed', error.response?.data?.detail || 'Unknown error');
     }
   };
 
@@ -127,11 +128,12 @@ const App = () => {
       const response = await axios.post(`${API}/auth/register`, registerForm);
       localStorage.setItem('token', response.data.access_token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
-      setUser(response.data.user);
+      setUser({...response.data.user, balance: response.data.user.balance || (response.data.user.is_admin ? 100 : 50)});
       setCurrentPage('home');
       setRegisterForm({ username: '', email: '', password: '' });
+      addNotification('win', '🎉 Welcome!', `Account created for ${response.data.user.username}`, response.data.user.is_admin ? 100 : 50);
     } catch (error) {
-      alert('Registration failed: ' + (error.response?.data?.detail || 'Unknown error'));
+      addNotification('error', 'Registration Failed', error.response?.data?.detail || 'Unknown error');
     }
   };
 
