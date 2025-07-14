@@ -66,25 +66,153 @@ input:focus, textarea:focus {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+/* ===================
+   GAME ANIMATIONS
+   =================== */
+
+/* Dice Animation */
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  10% { transform: translate(-2px, -2px) rotate(-2deg); }
+  20% { transform: translate(2px, -2px) rotate(2deg); }
+  30% { transform: translate(-2px, 2px) rotate(-2deg); }
+  40% { transform: translate(2px, 2px) rotate(2deg); }
+  50% { transform: translate(-2px, -2px) rotate(-2deg); }
+  60% { transform: translate(2px, -2px) rotate(2deg); }
+  70% { transform: translate(-2px, 2px) rotate(-2deg); }
+  80% { transform: translate(2px, 2px) rotate(2deg); }
+  90% { transform: translate(-2px, -2px) rotate(-2deg); }
+}
+
+.animate-shake {
+  animation: shake 0.5s infinite;
+}
+
+/* Mines Animations */
+@keyframes bounce-once {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1.05); }
+}
+
+.animate-bounce-once {
+  animation: bounce-once 0.6s ease-out;
+}
+
+@keyframes explosion {
+  0% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.3) rotate(180deg); }
+  100% { transform: scale(1.1) rotate(360deg); }
+}
+
+.animate-explosion {
+  animation: explosion 0.8s ease-out;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0; transform: scale(0); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.animate-twinkle {
+  animation: twinkle 1s infinite;
+}
+
+.animate-twinkle-delayed {
+  animation: twinkle 1s infinite 0.3s;
+}
+
+.animate-twinkle-slow {
+  animation: twinkle 2s infinite 0.6s;
+}
+
+@keyframes pulse-slow {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
+
+/* Crash Game Animations */
+@keyframes pulse-fast {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.animate-pulse-fast {
+  animation: pulse-fast 0.5s ease-in-out infinite;
+}
+
+/* ===================
+   NOTIFICATION ANIMATIONS
+   =================== */
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.5s ease-out;
+}
+
+/* Balance Animation */
+@keyframes balance-update {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); color: #10b981; }
+  100% { transform: scale(1); }
+}
+
+.animate-balance-update {
+  animation: balance-update 0.6s ease-out;
+}
+
+/* Win/Loss Animations */
+@keyframes win-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.8), 0 0 30px rgba(16, 185, 129, 0.6); }
+}
+
+.animate-win-glow {
+  animation: win-glow 1s ease-in-out 3;
+}
+
+@keyframes loss-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.animate-loss-shake {
+  animation: loss-shake 0.5s ease-in-out 2;
+}
+
 /* Game result animations */
 .win-animation {
-  animation: pulseGreen 0.5s ease-in-out;
+  animation: win-glow 0.8s ease-in-out;
 }
 
 .lose-animation {
-  animation: pulseRed 0.5s ease-in-out;
-}
-
-@keyframes pulseGreen {
-  0% { background-color: rgba(34, 197, 94, 0.2); }
-  50% { background-color: rgba(34, 197, 94, 0.5); }
-  100% { background-color: rgba(34, 197, 94, 0.2); }
-}
-
-@keyframes pulseRed {
-  0% { background-color: rgba(239, 68, 68, 0.2); }
-  50% { background-color: rgba(239, 68, 68, 0.5); }
-  100% { background-color: rgba(239, 68, 68, 0.2); }
+  animation: loss-shake 0.6s ease-in-out;
 }
 
 /* Loading spinner */
@@ -182,38 +310,6 @@ input:focus, textarea:focus {
   background: linear-gradient(45deg, #4facfe, #00f2fe);
 }
 
-/* Notification styles */
-.notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 1rem;
-  border-radius: 8px;
-  color: white;
-  font-weight: bold;
-  z-index: 1000;
-  animation: slideIn 0.3s ease;
-}
-
-.notification.success {
-  background: linear-gradient(45deg, #22c55e, #16a34a);
-}
-
-.notification.error {
-  background: linear-gradient(45deg, #ef4444, #dc2626);
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
 /* Hero section styles */
 .hero-gradient {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%);
@@ -230,4 +326,97 @@ input:focus, textarea:focus {
 .feature-card:hover {
   background: rgba(255, 255, 255, 0.15);
   transform: translateY(-5px);
+}
+
+/* Particle effects */
+@keyframes float-up {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(-50px) rotate(360deg); opacity: 0; }
+}
+
+.animate-float-up {
+  animation: float-up 2s ease-out forwards;
+}
+
+/* Multiplier animations */
+@keyframes multiplier-grow {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1.1); }
+}
+
+.animate-multiplier-grow {
+  animation: multiplier-grow 0.3s ease-out;
+}
+
+/* Cash out button animations */
+@keyframes cash-out-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 10px rgba(16, 185, 129, 0.5); }
+  50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(16, 185, 129, 0.8); }
+}
+
+.animate-cash-out-pulse {
+  animation: cash-out-pulse 1s ease-in-out infinite;
+}
+
+/* Crash explosion effect */
+@keyframes crash-explosion {
+  0% { 
+    transform: scale(1); 
+    background: radial-gradient(circle, #ef4444 0%, transparent 70%);
+  }
+  50% { 
+    transform: scale(2); 
+    background: radial-gradient(circle, #f97316 0%, #ef4444 50%, transparent 70%);
+  }
+  100% { 
+    transform: scale(3); 
+    background: radial-gradient(circle, #fbbf24 0%, #f97316 30%, #ef4444 60%, transparent 70%);
+    opacity: 0;
+  }
+}
+
+.animate-crash-explosion {
+  animation: crash-explosion 1s ease-out forwards;
+}
+
+/* Button press effects */
+.button-press {
+  transform: scale(0.95);
+  transition: transform 0.1s ease-in-out;
+}
+
+/* Hover glow effects */
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+  transform: translateY(-2px);
+}
+
+/* Success/Error state animations */
+.success-state {
+  animation: win-glow 1s ease-in-out;
+  border-color: #10b981;
+}
+
+.error-state {
+  animation: loss-shake 0.5s ease-in-out;
+  border-color: #ef4444;
+}
+
+/* Floating action button */
+.fab {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.fab:hover {
+  transform: scale(1.1) translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
 }
