@@ -659,6 +659,12 @@ const App = () => {
 
   const renderGames = () => (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-purple-900 p-8">
+      {/* Notification System */}
+      <NotificationSystem 
+        notifications={notifications} 
+        removeNotification={removeNotification} 
+      />
+      
       <div className="container mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl font-bold text-white">Games</h1>
@@ -669,8 +675,15 @@ const App = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Dice Game */}
-          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg">
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg game-card">
             <h2 className="text-2xl font-bold text-white mb-4 text-center">🎲 Dice Game</h2>
+            
+            {/* Animated Dice */}
+            <AnimatedDice 
+              isRolling={diceRolling}
+              result={gameResult?.roll || 50}
+              onAnimationComplete={onDiceAnimationComplete}
+            />
             
             <div className="space-y-4">
               <div>
@@ -682,6 +695,7 @@ const App = () => {
                   className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
                   min="1"
                   max="1000"
+                  disabled={diceRolling}
                 />
               </div>
               
@@ -695,19 +709,22 @@ const App = () => {
                   min="0.01"
                   max="99.99"
                   step="0.01"
+                  disabled={diceRolling}
                 />
               </div>
               
               <div className="flex space-x-2">
                 <button
                   onClick={() => setDiceGame({...diceGame, over: true})}
-                  className={`flex-1 py-2 rounded ${diceGame.over ? 'bg-green-600' : 'bg-gray-600'} text-white text-sm`}
+                  disabled={diceRolling}
+                  className={`flex-1 py-2 rounded transition-all ${diceGame.over ? 'bg-green-600 scale-105' : 'bg-gray-600'} text-white text-sm`}
                 >
                   Over {diceGame.target}
                 </button>
                 <button
                   onClick={() => setDiceGame({...diceGame, over: false})}
-                  className={`flex-1 py-2 rounded ${!diceGame.over ? 'bg-red-600' : 'bg-gray-600'} text-white text-sm`}
+                  disabled={diceRolling}
+                  className={`flex-1 py-2 rounded transition-all ${!diceGame.over ? 'bg-red-600 scale-105' : 'bg-gray-600'} text-white text-sm`}
                 >
                   Under {diceGame.target}
                 </button>
@@ -715,13 +732,20 @@ const App = () => {
               
               <button
                 onClick={playDice}
-                className="w-full bg-yellow-500 text-black py-3 rounded-lg font-bold hover:bg-yellow-400"
+                disabled={diceRolling}
+                className={`w-full py-3 rounded-lg font-bold transition-all ${
+                  diceRolling 
+                    ? 'bg-gray-600 cursor-not-allowed' 
+                    : 'bg-yellow-500 hover:bg-yellow-400 hover:scale-105'
+                } text-black`}
               >
-                Roll Dice
+                {diceRolling ? 'Rolling...' : 'Roll Dice'}
               </button>
               
-              {gameResult && gameResult.roll !== undefined && (
-                <div className="bg-black bg-opacity-30 p-4 rounded-lg text-white text-sm">
+              {gameResult && gameResult.roll !== undefined && !diceRolling && (
+                <div className={`bg-black bg-opacity-30 p-4 rounded-lg text-white text-sm transition-all duration-500 ${
+                  gameResult.result === 'win' ? 'animate-win-glow' : 'animate-loss-shake'
+                }`}>
                   <p>Roll: <span className="font-bold text-yellow-400">{gameResult.roll}</span></p>
                   <p>Result: <span className={`font-bold ${gameResult.result === 'win' ? 'text-green-400' : 'text-red-400'}`}>
                     {gameResult.result.toUpperCase()}
@@ -733,7 +757,7 @@ const App = () => {
           </div>
 
           {/* Mines Game */}
-          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg">
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg game-card">
             <h2 className="text-2xl font-bold text-white mb-4 text-center">💣 Mines Game</h2>
             
             <div className="space-y-4">
@@ -764,48 +788,31 @@ const App = () => {
               {!minesGame.gameId ? (
                 <button
                   onClick={startMinesGame}
-                  className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700"
+                  className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 hover:scale-105 transition-all"
                 >
                   Start Game
                 </button>
               ) : (
-                <div className="text-center">
-                  <p className="text-white mb-2">Multiplier: {minesGame.currentMultiplier.toFixed(2)}x</p>
-                  <button
-                    onClick={cashoutMines}
-                    className="w-full bg-yellow-500 text-black py-2 rounded-lg font-bold hover:bg-yellow-400 mb-4"
-                  >
-                    Cash Out
-                  </button>
-                </div>
+                <button
+                  onClick={cashoutMines}
+                  className="w-full bg-yellow-500 text-black py-2 rounded-lg font-bold hover:bg-yellow-400 mb-4 animate-cash-out-pulse"
+                >
+                  Cash Out
+                </button>
               )}
               
-              {/* Mines Grid */}
-              <div className="grid grid-cols-5 gap-1">
-                {minesGame.grid.map((tile, index) => (
-                  <button
-                    key={index}
-                    onClick={() => revealMinesTile(index)}
-                    disabled={!minesGame.gameId || tile !== 'hidden'}
-                    className={`aspect-square rounded text-xs font-bold ${
-                      tile === 'hidden' 
-                        ? 'bg-gray-600 hover:bg-gray-500' 
-                        : tile === 'safe'
-                        ? 'bg-green-600'
-                        : tile === 'mine'
-                        ? 'bg-red-600'
-                        : 'bg-red-800'
-                    }`}
-                  >
-                    {tile === 'safe' ? '💎' : tile === 'mine' || tile === 'mine-hit' ? '💣' : ''}
-                  </button>
-                ))}
-              </div>
+              {/* Animated Mines Grid */}
+              <AnimatedMinesGrid 
+                grid={minesGame.grid}
+                onTileClick={revealMinesTile}
+                gameId={minesGame.gameId}
+                currentMultiplier={minesGame.currentMultiplier}
+              />
             </div>
           </div>
 
           {/* Crash Game */}
-          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg">
+          <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-lg game-card">
             <h2 className="text-2xl font-bold text-white mb-4 text-center">🚀 Crash Game</h2>
             
             <div className="space-y-4">
@@ -816,7 +823,7 @@ const App = () => {
                   value={crashGame.amount}
                   onChange={(e) => setCrashGame({...crashGame, amount: parseFloat(e.target.value)})}
                   className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
-                  disabled={crashGame.isPlaying}
+                  disabled={crashGameState.isPlaying}
                 />
               </div>
               
@@ -829,26 +836,23 @@ const App = () => {
                   className="w-full p-3 rounded bg-white bg-opacity-20 text-white"
                   placeholder="e.g. 2.5x"
                   step="0.1"
-                  disabled={crashGame.isPlaying}
+                  disabled={crashGameState.isPlaying}
                 />
               </div>
               
-              {crashGame.isPlaying ? (
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-yellow-400 mb-4">
-                    {crashGame.currentMultiplier.toFixed(2)}x
-                  </div>
-                  <button
-                    onClick={manualCashOut}
-                    className="w-full bg-red-600 text-white py-3 rounded-lg font-bold hover:bg-red-700"
-                  >
-                    CASH OUT NOW!
-                  </button>
-                </div>
-              ) : (
+              {/* Animated Crash Component */}
+              <AnimatedCrash 
+                isPlaying={crashGameState.isPlaying}
+                currentMultiplier={crashGame.currentMultiplier}
+                onCashOut={manualCashOut}
+                crashPoint={gameResult?.crash_point}
+                gameEnded={crashGameState.gameEnded}
+              />
+              
+              {!crashGameState.isPlaying && !crashGameState.gameEnded && (
                 <button
                   onClick={playCrash}
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700"
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 hover:scale-105 transition-all"
                 >
                   Start Crash
                 </button>
