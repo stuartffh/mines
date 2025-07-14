@@ -239,13 +239,36 @@ const App = () => {
 
   // Dice Game
   const playDice = async () => {
+    if (diceRolling) return;
+    
+    setDiceRolling(true);
+    setGameResult(null);
+    
     try {
       const response = await axios.post(`${API}/games/dice/play`, diceGame);
-      setGameResult(response.data);
-      getUserInfo(); // Refresh user info
+      
+      // Animation will complete and call this function
+      setTimeout(() => {
+        setGameResult(response.data);
+        
+        // Add notification
+        if (response.data.result === 'win') {
+          addNotification('win', '🎉 You Won!', `Roll: ${response.data.roll}`, response.data.payout);
+        } else {
+          addNotification('loss', '💸 You Lost', `Roll: ${response.data.roll}`, -diceGame.amount);
+        }
+        
+        getUserInfo(); // Refresh user info
+      }, 2000); // Match animation duration
+      
     } catch (error) {
-      alert('Game error: ' + (error.response?.data?.detail || 'Unknown error'));
+      setDiceRolling(false);
+      addNotification('error', 'Game Error', error.response?.data?.detail || 'Unknown error');
     }
+  };
+
+  const onDiceAnimationComplete = () => {
+    setDiceRolling(false);
   };
 
   // Mines Game
